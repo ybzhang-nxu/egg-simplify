@@ -128,14 +128,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "egg",
- "thiserror",
-]
-
-[[package]]
 name = "egg"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -158,7 +150,15 @@ name = "egg-simplify"
 version = "0.1.0"
 dependencies = [
  "clap",
- "core",
+ "egg-simplify-core",
+]
+
+[[package]]
+name = "egg-simplify-core"
+version = "0.1.0"
+dependencies = [
+ "egg",
+ "thiserror",
 ]
 
 [[package]]

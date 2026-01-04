@@ -1,5 +1,6 @@
 use egg::{rewrite as rw, *};
 use thiserror::Error;
+use std::cmp::Ordering;
 
 define_language! {
     pub enum Sym {
@@ -109,5 +110,64 @@ pub fn simplify_sexp(input: &str, iters: usize) -> Result<String, SimplifyError>
     let extractor = Extractor::new(&runner.egraph, AstSize);
     let (_best_cost, best) = extractor.find_best(root);
 
-    Ok(best.to_string())
+    Ok(normalize_expr(&best))
+}
+
+fn normalize_expr(expr: &RecExpr<Sym>) -> String {
+    let root = Id::from(expr.as_ref().len() - 1);
+    format_node(expr, root)
+}
+
+fn format_node(expr: &RecExpr<Sym>, id: Id) -> String {
+    match &expr[id] {
+        Sym::Num(n) => n.to_string(),
+        Sym::Symbol(sym) => sym.to_string(),
+        Sym::Add(_) => format_flat(expr, id, '+'),
+        Sym::Mul(_) => format_flat(expr, id, '*'),
+        Sym::Neg(child) => format!("(neg {})", format_node(expr, *child)),
+        Sym::Pow([a, b]) => format!("(^ {} {})", format_node(expr, *a), format_node(expr, *b)),
+    }
+}
+
+fn format_flat(expr: &RecExpr<Sym>, id: Id, op: char) -> String {
+    let mut children = Vec::new();
+    collect_flat(expr, id, op, &mut children);
+
+    let mut parts: Vec<String> = children
+        .into_iter()
+        .map(|child| format_node(expr, child))
+        .collect();
+    parts.sort_by(sort_terms);
+
+    let joined = parts.join(" ");
+    format!("({} {})", op, joined)
+}
+
+fn collect_flat(expr: &RecExpr<Sym>, id: Id, op: char, out: &mut Vec<Id>) {
+    match (&expr[id], op) {
+        (Sym::Add([a, b]), '+') => {
+            collect_flat(expr, *a, op, out);
+            collect_flat(expr, *b, op, out);
+        }
+        (Sym::Mul([a, b]), '*') => {
+            collect_flat(expr, *a, op, out);
+            collect_flat(expr, *b, op, out);
+        }
+        _ => out.push(id),
+    }
+}
+
+fn sort_terms(a: &String, b: &String) -> Ordering {
+    let a_num = is_number(a);
+    let b_num = is_number(b);
+    match (a_num, b_num) {
+        (true, false) => Ordering::Less,
+        (false, true) => Ordering::Greater,
+        _ => a.cmp(b),
+    }
+}
+
+fn is_number(s: &str) -> bool {
+    let trimmed = s.trim_start_matches('-');
+    !trimmed.is_empty() && trimmed.chars().all(|c| c.is_ascii_digit())
 }
