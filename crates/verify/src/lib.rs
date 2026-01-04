@@ -13,6 +13,8 @@ pub enum EvalError {
     NegativePowerOfZero,
     #[error("overflow while computing power")]
     PowerOverflow,
+    #[error("unsupported function '{0}'")]
+    UnsupportedFunction(String),
 }
 
 pub fn eval_rational(
@@ -44,6 +46,8 @@ pub fn eval_rational(
             let value = eval_rational(base, env)?;
             eval_pow(value, *exp)
         }
+        Expr::Log(_) => Err(EvalError::UnsupportedFunction("log".to_string())),
+        Expr::Li2(_) => Err(EvalError::UnsupportedFunction("li2".to_string())),
     }
 }
 
@@ -59,7 +63,7 @@ fn eval_pow(value: Rational64, exp: i32) -> Result<Rational64, EvalError> {
     if exp < 0 && numer == 0 {
         return Err(EvalError::NegativePowerOfZero);
     }
-    let exp_abs = exp.abs() as u32;
+    let exp_abs = exp.unsigned_abs();
     let (base_numer, base_denom) = if exp >= 0 { (numer, denom) } else { (denom, numer) };
     let numer_pow = base_numer
         .checked_pow(exp_abs)

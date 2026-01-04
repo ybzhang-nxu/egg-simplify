@@ -10,6 +10,8 @@ pub enum Expr {
     Mul(Vec<Expr>),
     Neg(Box<Expr>),
     Pow(Box<Expr>, i32),
+    Log(Box<Expr>),
+    Li2(Box<Expr>),
 }
 
 #[derive(Debug, Error)]
@@ -36,6 +38,10 @@ pub enum ParseError {
     InvalidExponent(String),
     #[error("'/' expects at least two arguments")]
     InvalidDivisionArity,
+    #[error("'log' expects exactly one argument")]
+    InvalidLogArity,
+    #[error("'li2' expects exactly one argument")]
+    InvalidLi2Arity,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -143,6 +149,20 @@ fn parse_list(tokens: &[Token], index: &mut usize) -> Result<Expr, ParseError> {
                         Err(ParseError::InvalidUnaryMinus)
                     }
                 }
+                "log" => {
+                    if args.len() == 1 {
+                        Ok(Expr::Log(Box::new(args.into_iter().next().unwrap())))
+                    } else {
+                        Err(ParseError::InvalidLogArity)
+                    }
+                }
+                "li2" => {
+                    if args.len() == 1 {
+                        Ok(Expr::Li2(Box::new(args.into_iter().next().unwrap())))
+                    } else {
+                        Err(ParseError::InvalidLi2Arity)
+                    }
+                }
                 _ => Err(ParseError::UnknownOperator(op)),
             }
         }
@@ -235,6 +255,8 @@ impl Expr {
             Expr::Add(children) => normalize_add(children),
             Expr::Mul(children) => normalize_mul(children),
             Expr::Pow(base, exp) => normalize_pow(base, *exp),
+            Expr::Log(inner) => Expr::Log(Box::new(inner.normalize())),
+            Expr::Li2(inner) => Expr::Li2(Box::new(inner.normalize())),
         }
     }
 
@@ -246,6 +268,8 @@ impl Expr {
             Expr::Add(children) => format_list("+", children),
             Expr::Mul(children) => format_list("*", children),
             Expr::Pow(base, exp) => format!("(^ {} {exp})", base.to_canonical_string()),
+            Expr::Log(inner) => format!("(log {})", inner.to_canonical_string()),
+            Expr::Li2(inner) => format!("(li2 {})", inner.to_canonical_string()),
         }
     }
 }
@@ -387,23 +411,23 @@ fn normalize_pow(base: &Expr, exp: i32) -> Expr {
             if let Some(combined) = inner_exp.checked_mul(exp) {
                 return normalize_pow(&inner, combined);
             }
-            return Expr::Pow(Box::new(Expr::Pow(inner, inner_exp)), exp);
+            Expr::Pow(Box::new(Expr::Pow(inner, inner_exp)), exp)
         }
         Expr::Rational(value) => {
             if let Some(result) = pow_rational(value, exp) {
                 return Expr::Rational(result);
             }
-            return Expr::Pow(Box::new(Expr::Rational(value)), exp);
+            Expr::Pow(Box::new(Expr::Rational(value)), exp)
         }
         Expr::Neg(inner) => {
             if exp % 2 == 0 {
                 return normalize_pow(&inner, exp);
             }
             let inner_pow = normalize_pow(&inner, exp);
-            return Expr::Neg(Box::new(inner_pow));
+            Expr::Neg(Box::new(inner_pow))
         }
         other => {
-            return Expr::Pow(Box::new(other), exp);
+            Expr::Pow(Box::new(other), exp)
         }
     }
 }
@@ -417,7 +441,7 @@ fn pow_rational(value: Rational64, exp: i32) -> Option<Rational64> {
     }
     let numer = *value.numer();
     let denom = *value.denom();
-    let exp_abs = exp.abs() as u32;
+    let exp_abs = exp.unsigned_abs();
     if exp < 0 && numer == 0 {
         return None;
     }
@@ -568,6 +592,22 @@ mod tests {
     #[test]
     fn normalize_roundtrip_is_stable() {
         let input = "(+ x (+ y 0) (+ 3 x))";
+        let printed = canon(input);
+        let printed_again = canon(&printed);
+        assert_eq!(printed, printed_again);
+    }
+
+    #[test]
+    fn normalize_roundtrip_log_is_stable() {
+        let input = "(log (+ x 0))";
+        let printed = canon(input);
+        let printed_again = canon(&printed);
+        assert_eq!(printed, printed_again);
+    }
+
+    #[test]
+    fn normalize_roundtrip_li2_is_stable() {
+        let input = "(li2 (+ x 0))";
         let printed = canon(input);
         let printed_again = canon(&printed);
         assert_eq!(printed, printed_again);

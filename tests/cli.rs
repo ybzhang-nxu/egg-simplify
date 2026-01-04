@@ -57,3 +57,21 @@ fn cli_pow_nesting_simplifies() {
         .success()
         .stdout(predicate::str::contains("(^ x 6)"));
 }
+
+#[test]
+fn cli_symbol_li2_contains_tensor() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args(["symbol", "--expr", "(li2 x)"]);
+    cmd.assert().success().stdout(predicate::str::contains("⊗"));
+}
+
+#[test]
+fn cli_check_integrable_log_log() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args(["check-integrable", "--expr", "(* (log x) (log y))"]);
+    cmd.assert().success().stdout(predicate::eq("true\n"));
+}

@@ -312,7 +312,14 @@ fn normalize_mul(items: Vec<Expr>) -> Expr {
             Expr::Const(c) => const_prod *= c,
             Expr::Mul(inner) => {
                 for f in inner {
-                    factors.push(f);
+                    match f {
+                        Expr::Const(c) => const_prod *= c,
+                        Expr::Neg(inner) => {
+                            const_prod = -const_prod;
+                            factors.push(*inner);
+                        }
+                        other => factors.push(other),
+                    }
                 }
             }
             Expr::Neg(inner) => {

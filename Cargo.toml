@@ -1,3 +1,9 @@
 [workspace]
-members = ["crates/ir", "crates/verify", "crates/cli"]
+members = [
+    "crates/cli",
+    "crates/ir",
+    "crates/rewrite",
+    "crates/symbol",
+    "crates/verify",
+]
 resolver = "2"

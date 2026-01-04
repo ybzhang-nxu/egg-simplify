@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 mpl-ir = { path = "../ir" }
+mpl-rewrite = { path = "../rewrite" }
+mpl-symbol = { path = "../symbol" }
 
 [dev-dependencies]
 assert_cmd = "2"
