@@ -1,0 +1,17 @@
+[package]
+name = "mpl-ir"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+num-rational = "0.4"
+num-traits = "0.2"
+thiserror = "1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "parse_normalize"
+harness = false
+path = "../../benches/parse_normalize.rs"

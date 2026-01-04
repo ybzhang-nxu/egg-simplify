@@ -1,8 +1,16 @@
 [package]
-name = "egg-simplify"
-version = "0.1.0"
+name = "mpl-simplify"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-core = { package = "egg-simplify-core", path = "../core" }
 clap = { version = "4", features = ["derive"] }
+mpl-ir = { path = "../ir" }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[[test]]
+name = "cli"
+path = "../../tests/cli.rs"

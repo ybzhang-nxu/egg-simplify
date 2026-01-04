@@ -6,3 +6,7 @@ edition = "2021"
 [dependencies]
 egg = "0.9"
 thiserror = "1"
+num-rational = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+symbolic_expressions = "5"
+itertools = "0.13"
