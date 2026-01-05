@@ -2,7 +2,9 @@ mod calculus;
 mod error;
 mod eval;
 mod integrability;
+mod integrability_utils;
 mod rules;
+pub mod space;
 mod tensor;
 
 pub use error::{EvalError, SymbolError};

@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use mpl_ir::Expr;
 use num_rational::Rational64;
 use num_traits::Zero;
 
-use crate::calculus::deriv;
-use crate::error::{EvalError, SymbolError};
-use crate::eval::eval;
+use crate::error::SymbolError;
+use crate::integrability_utils::{build_envs, collect_vars, dlog};
 use crate::tensor::Symbol;
 
 pub fn check_integrable(sym: &Symbol) -> Result<bool, SymbolError> {
@@ -65,44 +63,6 @@ pub fn check_integrable(sym: &Symbol) -> Result<bool, SymbolError> {
     Ok(true)
 }
 
-fn collect_vars(expr: &Expr, vars: &mut BTreeSet<String>) {
-    match expr {
-        Expr::Var(name) => {
-            vars.insert(name.clone());
-        }
-        Expr::Add(children) | Expr::Mul(children) => {
-            for child in children {
-                collect_vars(child, vars);
-            }
-        }
-        Expr::Neg(inner) => collect_vars(inner, vars),
-        Expr::Pow(base, _) => collect_vars(base, vars),
-        Expr::Rational(_) => {}
-        Expr::Log(_) | Expr::Li2(_) => {}
-    }
-}
-
-fn build_envs(vars: &[String]) -> Vec<BTreeMap<String, Rational64>> {
-    let values = [
-        Rational64::new(2, 7),
-        Rational64::new(3, 7),
-        Rational64::new(2, 5),
-        Rational64::new(3, 5),
-        Rational64::new(4, 9),
-        Rational64::new(5, 11),
-    ];
-    let mut envs = Vec::new();
-    for k in 0..5 {
-        let mut env = BTreeMap::new();
-        for (j, var) in vars.iter().enumerate() {
-            let value = values[(k + j) % values.len()];
-            env.insert(var.clone(), value);
-        }
-        envs.push(env);
-    }
-    envs
-}
-
 fn wedge_value(
     sym: &Symbol,
     vi: &str,
@@ -137,26 +97,4 @@ fn wedge_value(
         total += *coeff * term;
     }
     Ok(Some(total))
-}
-
-fn dlog(
-    letter: &Expr,
-    var: &str,
-    env: &BTreeMap<String, Rational64>,
-) -> Result<Option<Rational64>, SymbolError> {
-    let denom = match eval(letter, env) {
-        Ok(value) => value,
-        Err(EvalError::NegativePowerOfZero) => return Ok(None),
-        Err(err) => return Err(err.into()),
-    };
-    if denom.is_zero() {
-        return Ok(None);
-    }
-    let deriv = deriv(letter, var)?;
-    let numer = match eval(&deriv, env) {
-        Ok(value) => value,
-        Err(EvalError::NegativePowerOfZero) => return Ok(None),
-        Err(err) => return Err(err.into()),
-    };
-    Ok(Some(numer / denom))
 }
