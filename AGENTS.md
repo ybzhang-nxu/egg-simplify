@@ -1,4 +1,4 @@
-# AGENTS.md — Development Constraints & Roadmap Guardrails
+﻿# AGENTS.md - Development Constraints & Roadmap Guardrails
 
 This repository is a Rust workspace for a deterministic, modular simplifier
 targeting MPL/GPL-style expressions and amplitude-style symbol workflows.
@@ -26,7 +26,7 @@ cargo test --workspace
 cargo clippy --all-targets --all-features -- -D warnings
 # Optional:
 cargo bench
-````
+```
 
 CLI note (Windows / clap): if an expr starts with `-` (e.g. `-7/3`), pass as:
 
@@ -48,7 +48,7 @@ CLI note (Windows / clap): if an expr starts with `-` (e.g. `-7/3`), pass as:
 
 Hard constraints:
 
-* Deterministic output, idempotent normalization
+* OK: deterministic output (no unstable ordering)
 * **No dependence on higher-level crates**
 * Canonical output must not leak unordered map iteration order
 
@@ -64,14 +64,16 @@ Symbol-layer tooling:
 
 * Tensor `Symbol` data structure (sparse words, coefficients)
 * `symbol(expr)` for supported function nodes (currently log/Li2; future: Li3/GPL)
-* `check_integrable(symbol)` (start at weight=2, later higher)
+* `check_integrable(symbol)` (weight-2 legacy entry point)
+* `check_integrable_n(symbol)` for general weight-n integrability
+* `Alphabet`, `WordConstraints`, `Basis`, `BasisStats`, `build_integrable_basis`, `reduce_to_basis`
 * `project_to_integrable` / basis reduction (future)
 
 Constraints:
 
 * Depends on `ir` (and optionally small third-party crates)
 * Must NOT depend on `rewrite` or `cli`
-* Deterministic output (sorted words, stable printing)
+* OK: deterministic output (no unstable ordering)
 
 ### `crates/rewrite` (mpl-rewrite)
 
@@ -148,6 +150,21 @@ Any intentional change requires:
 * E-graph extraction must be deterministic for the same config.
 * If sampling is used (integrability checks), sampling must be deterministic:
   fixed sample table + fixed env generation order.
+* Word enumeration for the space engine is lexicographic by letter id.
+* Pivot selection uses the smallest column index in the row.
+* Basis vectors use the free-variable convention (identity on free columns).
+* `BasisStats` output must be deterministic for identical inputs.
+
+## 4.5) Space Engine Non-Negotiables (v0.1.4)
+
+* Determinism: use ordered maps/sets or explicit sorting (no `HashMap` iteration).
+* Letters are canonical `Expr` values; no branch-sensitive MPL identities.
+* Constraints are plug-in only (first-entry/adjacency); the core engine stays alphabet-agnostic.
+* Linear algebra MUST use streaming REF/dictionary elimination plus back-substitution.
+  Do NOT reintroduce global RREF cleanup (quadratic behavior).
+* Diagnostics must use `BasisStats`; avoid ad-hoc prints in library paths.
+* Stress tests must remain `#[ignore]` and be documented in README.
+* Keep the `{x, y}` toy oracle regression (dim at weight `w` is `w + 1`).
 
 ---
 
@@ -199,7 +216,7 @@ Default rule set (early versions):
 
 **Definition of done for a rewrite milestone:**
 
-* `cargo test --workspace` green
+* OK: `cargo test --workspace` green
 * New rewrite rules have:
 
   * unit tests demonstrating expected simplification
@@ -243,9 +260,12 @@ without branch-sensitive functional identities.
 
 #### Integrability
 
-* Current: weight=2 wedge check.
-* Next: extend `check_integrable` weight-by-weight.
+* Current: general weight-n integrability via `check_integrable_n` (adjacent wedge + context grouping).
+* `check_integrable` remains the weight-2 legacy entry point.
 * Provide a deterministic sampling strategy; skip singular points; fail with readable error if no valid samples.
+* Basis builder MUST keep streaming REF/dictionary elimination + back-substitution.
+  Do NOT reintroduce global RREF cleanup (quadratic behavior).
+* Maintain `BasisStats` for diagnostics rather than ad-hoc prints.
 
 #### Projection / basis reduction
 
@@ -259,7 +279,7 @@ without branch-sensitive functional identities.
 
 * New node + rules + tests are added
 * `symbol(expr)` output is deterministic and stable
-* `check_integrable` is correct on curated positive/negative examples
+* `check_integrable` and `check_integrable_n` are correct on curated examples
 * Any new math convention is documented (short spec in `docs/`)
 
 ---
@@ -267,7 +287,7 @@ without branch-sensitive functional identities.
 ### 5.3 CLI: Add `simplify` Command (Pipeline Entry Point)
 
 **Goal:** Provide a single stable entry point that composes:
-canonical normalization → (optional) e-graph rewrite → (optional) symbol guard → final normalize.
+canonical normalization -> (optional) e-graph rewrite -> (optional) symbol guard -> final normalize.
 
 #### CLI design rules
 
@@ -280,7 +300,7 @@ canonical normalization → (optional) e-graph rewrite → (optional) symbol gua
 
 #### `simplify` recommended behavior (default settings)
 
-1. Parse → `ir.normalize()`
+1. Parse -> `ir.normalize()`
 2. Run `rewrite` (egg) with safe rules + limits
 3. Optional symbol guard:
 
@@ -317,6 +337,8 @@ Flags:
 
   * exact symbol output tests (or canonicalized form tests)
   * integrability tests
+* Keep `{x, y}` toy oracle coverage for basis dimension at weight `w` (`w + 1`).
+* Heavy stress tests must be `#[ignore]` and documented in README.
 
 Benchmarks:
 
@@ -343,9 +365,11 @@ Benchmarks:
 
 ## 8) Change Control Checklist (before merging)
 
-* ✅ `cargo test --workspace` green
-* ✅ deterministic output (no unstable ordering)
-* ✅ dependency DAG unchanged (no cycles)
-* ✅ canonical red lines respected (or spec+tests updated)
-* ✅ new rule additions have tests + (if risky) micro-bench
+* OK: `cargo test --workspace` green
+* OK: deterministic output (no unstable ordering)
+* OK: dependency DAG unchanged (no cycles)
+* OK: canonical red lines respected (or spec+tests updated)
+* OK: new rule additions have tests + (if risky) micro-bench
+
+
 

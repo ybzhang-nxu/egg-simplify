@@ -7,6 +7,9 @@ use crate::error::SymbolError;
 use crate::integrability_utils::{build_envs, collect_vars, DlogCache};
 use crate::tensor::{Coeff, Symbol, Word};
 
+mod stats;
+pub use stats::BasisStats;
+
 #[derive(Clone, Debug)]
 pub struct Alphabet {
     pub name: String,
@@ -65,6 +68,13 @@ pub struct Basis {
     pub words: Vec<Vec<usize>>,
     pub vectors: Vec<Vec<Coeff>>,
     free_cols: Vec<usize>,
+    stats: BasisStats,
+}
+
+impl Basis {
+    pub fn stats(&self) -> &BasisStats {
+        &self.stats
+    }
 }
 
 pub fn build_integrable_basis(
@@ -76,31 +86,40 @@ pub fn build_integrable_basis(
 
     let words = enumerate_words(alpha.letters.len(), constraints, weight);
     let ncols = words.len();
+    let letters = normalized_letters(alpha);
+    let vars = collect_vars_from_letters(&letters);
+    let mut stats = BasisStats::default();
+    stats.ncols = ncols;
+    stats.vars_count = vars.len();
 
     if ncols == 0 {
+        stats.dim = 0;
+        stats.rank = 0;
         return Ok(Basis {
             words,
             vectors: Vec::new(),
             free_cols: Vec::new(),
+            stats,
         });
     }
-
-    let letters = normalized_letters(alpha);
-    let vars = collect_vars_from_letters(&letters);
 
     if weight < 2 || vars.len() < 2 {
         let free_cols: Vec<usize> = (0..ncols).collect();
         let vectors = identity_basis(ncols);
+        stats.dim = vectors.len();
+        stats.rank = 0;
         return Ok(Basis {
             words,
             vectors,
             free_cols,
+            stats,
         });
     }
 
     let envs = build_envs(&vars);
     let cache = DlogCache::new(&letters, &vars, &envs)?;
     let mut pivot_rows: BTreeMap<usize, SparseRow> = BTreeMap::new();
+    stats.envs_total = envs.len();
 
     for k in 0..(weight - 1) {
         let contexts = build_contexts(&words, k);
@@ -109,13 +128,15 @@ pub fn build_integrable_basis(
                 for vj in (vi + 1)..vars.len() {
                     let mut valid = 0;
                     for env_idx in 0..envs.len() {
+                        stats.rows_attempted += 1;
                         let mut row = SparseRow::new();
                         let mut invalid = false;
                         for &col in &cols {
                             let word = &words[col];
                             let a = word[k];
                             let b = word[k + 1];
-                            let wedge = wedge_from_cache(&cache, env_idx, a, b, vi, vj);
+                            let wedge =
+                                wedge_from_cache_stats(&cache, env_idx, a, b, vi, vj, &mut stats);
                             let wedge = match wedge {
                                 Some(value) => value,
                                 None => {
@@ -129,15 +150,25 @@ pub fn build_integrable_basis(
                         }
 
                         if invalid {
+                            stats.rows_skipped_singular += 1;
                             continue;
                         }
                         valid += 1;
+                        stats.samples_used += 1;
                         if !row.is_empty() {
-                            insert_row(&mut pivot_rows, row);
+                            if let Some(nnz) = insert_row(&mut pivot_rows, row) {
+                                stats.rows_inserted += 1;
+                                stats.sum_row_nnz += nnz;
+                                if nnz > stats.max_row_nnz {
+                                    stats.max_row_nnz = nnz;
+                                }
+                            }
                         }
                     }
 
                     if valid < 2 {
+                        stats.constraints_insufficient_samples += 1;
+                        let _ = stats.constraints_insufficient_samples;
                         return Err(SymbolError::InsufficientSamples);
                     }
                 }
@@ -148,11 +179,14 @@ pub fn build_integrable_basis(
     let pivot_cols: Vec<usize> = pivot_rows.keys().copied().collect();
     let free_cols = compute_free_cols(ncols, &pivot_cols);
     let vectors = build_nullspace_vectors(ncols, &pivot_rows, &free_cols);
+    stats.rank = pivot_rows.len();
+    stats.dim = vectors.len();
 
     Ok(Basis {
         words,
         vectors,
         free_cols,
+        stats,
     })
 }
 
@@ -511,48 +545,65 @@ fn wedge_from_cache(
     Some(a_vi * b_vj - a_vj * b_vi)
 }
 
-fn insert_row(pivot_rows: &mut BTreeMap<usize, SparseRow>, mut row: SparseRow) {
-    loop {
-        if row.is_empty() {
-            return;
-        }
+fn wedge_from_cache_stats(
+    cache: &DlogCache,
+    env_idx: usize,
+    a: usize,
+    b: usize,
+    vi: usize,
+    vj: usize,
+    stats: &mut BasisStats,
+) -> Option<Coeff> {
+    let a_vi = cached_dlog_value(cache, env_idx, a, vi, stats)?;
+    let b_vj = cached_dlog_value(cache, env_idx, b, vj, stats)?;
+    let a_vj = cached_dlog_value(cache, env_idx, a, vj, stats)?;
+    let b_vi = cached_dlog_value(cache, env_idx, b, vi, stats)?;
+    stats.wedge_cache_hits += 1;
+    Some(a_vi * b_vj - a_vj * b_vi)
+}
 
-        let pivot_col = row.keys().copied().find(|col| pivot_rows.contains_key(col));
-        if let Some(col) = pivot_col {
-            let factor = *row.get(&col).unwrap();
-            let existing = pivot_rows[&col].clone();
+fn cached_dlog_value(
+    cache: &DlogCache,
+    env_idx: usize,
+    letter_idx: usize,
+    var_idx: usize,
+    stats: &mut BasisStats,
+) -> Option<Coeff> {
+    match cache.get(env_idx, letter_idx, var_idx) {
+        Some(value) => {
+            stats.dlog_cache_hits += 1;
+            Some(value)
+        }
+        None => {
+            stats.dlog_cache_misses += 1;
+            stats.wedge_cache_misses += 1;
+            None
+        }
+    }
+}
+
+fn insert_row(pivot_rows: &mut BTreeMap<usize, SparseRow>, mut row: SparseRow) -> Option<usize> {
+    loop {
+        let pivot_col = match row.keys().next().copied() {
+            Some(col) => col,
+            None => return None,
+        };
+
+        if let Some(existing) = pivot_rows.get(&pivot_col) {
+            let factor = *row.get(&pivot_col).unwrap();
+            let existing = existing.clone();
             add_scaled_row(&mut row, factor, &existing);
             continue;
         }
 
-        let pivot_col = row.keys().next().copied().unwrap();
         let pivot = row[&pivot_col];
         if !pivot.is_zero() {
             let inv = Coeff::one() / pivot;
             scale_row(&mut row, inv);
         }
 
-        let row_clone = row.clone();
-        let keys: Vec<usize> = pivot_rows.keys().copied().collect();
-        for key in keys {
-            let should_eliminate = pivot_rows
-                .get(&key)
-                .and_then(|existing| existing.get(&pivot_col).copied());
-            if let Some(factor) = should_eliminate {
-                if let Some(existing) = pivot_rows.get(&key) {
-                    let mut updated = existing.clone();
-                    add_scaled_row(&mut updated, factor, &row_clone);
-                    if updated.is_empty() {
-                        pivot_rows.remove(&key);
-                    } else {
-                        pivot_rows.insert(key, updated);
-                    }
-                }
-            }
-        }
-
         pivot_rows.insert(pivot_col, row);
-        return;
+        return Some(pivot_rows[&pivot_col].len());
     }
 }
 
@@ -605,16 +656,23 @@ fn build_nullspace_vectors(
 ) -> Vec<Vec<Coeff>> {
     let mut vectors = Vec::with_capacity(free_cols.len());
     let pivot_cols: Vec<usize> = pivot_rows.keys().copied().collect();
+    let mut pivot_cols_desc = pivot_cols.clone();
+    pivot_cols_desc.reverse();
     for &free in free_cols {
         let mut vec = vec![Coeff::zero(); ncols];
         if free < ncols {
             vec[free] = Coeff::one();
         }
-        for pivot in &pivot_cols {
+        for pivot in &pivot_cols_desc {
             let row = &pivot_rows[pivot];
-            if let Some(value) = row.get(&free) {
-                vec[*pivot] = -*value;
+            let mut sum = Coeff::zero();
+            for (col, value) in row {
+                if *col == *pivot {
+                    continue;
+                }
+                sum += *value * vec[*col];
             }
+            vec[*pivot] = -sum;
         }
         vectors.push(vec);
     }

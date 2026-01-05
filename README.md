@@ -1,27 +1,29 @@
-# mpl-simplifier (v0.1.2)
+﻿# mpl-simplifier (v0.1.4 node release)
 
-## Project Overview
+## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
 expressions. It provides a canonical normal form (v0.1.1 baseline), a minimal
-symbol layer for log/li2, and an egg-based rewrite engine with a conservative
-symbol guard to prevent rewrites from violating defined symbol constraints.
+symbol layer for log/li2 with general weight-n integrability and a space engine,
+and an egg-based rewrite engine with a conservative symbol guard to prevent
+rewrites from violating defined symbol constraints.
 
 This project intentionally avoids branch-sensitive functional identities and
-full MPL/GPL reconstruction. It does not implement log/li2 identities, higher
-weight symbol integrability, or function reconstruction; those are deferred to
-future milestones.
+full MPL/GPL reconstruction. It does not implement log/li2 identities or
+function reconstruction; those are deferred to future milestones.
 
-## Workspace Layout
+## Architecture & Crates
 Dependency DAG (no cycles, per AGENTS.md):
 `mpl-ir` <- {`mpl-symbol`, `mpl-rewrite`, `mpl-verify`} <- `mpl-simplify`.
 
 | Crate | Purpose | Key Modules / Public API | Depends On |
 | --- | --- | --- | --- |
 | `mpl-ir` | AST, parser, normalization, canonical printing | `Expr`, `parse_sexpr`, `Expr::normalize`, `Expr::to_canonical_string`, `ParseError` (`crates/ir/src/lib.rs`) | (none) |
-| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks | `Symbol`, `Word`, `Coeff`, `symbol`, `check_integrable`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
+| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `symbol`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
 | `mpl-rewrite` | egg language/rules/lowering/lifting + simplifier | `simplify_algebra`, `RewriteConfig`, `RewriteMode`, `RewriteError`, `lower_expr`, `lift_expr` (`crates/rewrite/src/*.rs`) | `mpl-ir`, `egg` |
 | `mpl-verify` | Exact rational eval + sample equivalence | `eval_rational`, `equiv_on_samples`, `EvalError` (`crates/verify/src/lib.rs`) | `mpl-ir` |
 | `mpl-simplify` | CLI entry point | Subcommands in `crates/cli/src/main.rs` | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
+
+See `docs/ARCHITECTURE.md` for a short architecture overview.
 
 ## Expression Language (current)
 - S-expression syntax.
@@ -44,7 +46,7 @@ Canonical rules are stable and deterministic. Key red lines:
 - Remove multiplicative identity: `(* x 1) -> x`, empty product -> `1`.
 - Strict annihilator: any `Mul` containing `0` normalizes to `0`.
 - Fold rational constants in `Add` and `Mul` into a single exact rational.
-- Eliminate division: `(/ a b c)` -> `(* a (^ b -1) (^ c -1))`.
+- Eliminate division: `(/ a b c)` -> `(* (^ b -1) (^ c -1) a)`.
 - Power rules: `x^0 -> 1` (including `0^0 -> 1`), `x^1 -> x`.
 - Merge same-base powers in products: `x^a * x^b -> x^(a+b)`.
 - Safe power folding for rationals; `(^ 0 -1)` stays as-is (no panic).
@@ -56,19 +58,66 @@ See `docs/canonical_form.md` for the formal spec.
 ## Symbol Layer (current milestone)
 Supported symbol rules (no branch-sensitive identities):
 - `S(log l) = [l]` for algebraic letter `l`.
-- `S(li2 f) = -(1-f) ⊗ f` (letter `f` must be algebraic).
-- `S(log a * log b) = a ⊗ b + b ⊗ a` (algebraic letters only).
+- `S(li2 f) = -(1-f) otimes f` (letter `f` must be algebraic).
+- `S(log a * log b) = a otimes b + b otimes a` (algebraic letters only).
+- `S((log l)^2) = 2 * [l, l]`.
+Here `otimes` denotes word concatenation (tensor product) in the symbol.
 
 Integrability:
-- `check_integrable` currently supports weight-2 symbols; weight > 2 returns
-  `NotImplemented`.
+- `check_integrable` supports weight-2 symbols (legacy entry point).
+- For weights greater than 2, `check_integrable` returns `SymbolError::NotImplemented`.
+- `mpl_symbol::space::check_integrable_n` supports general weight-n symbols.
 - Deterministic sampling uses a fixed rational table and ordered variable
-  environments; singular points are skipped.
+  environments; singular points are skipped (insufficient samples return
+  `SymbolError::InsufficientSamples`).
 
 Output format:
-- CLI prints one line per word: `coeff * (l1 ⊗ l2 ⊗ ...)`.
+- CLI prints one line per word: `coeff * (l1 <sep> l2 <sep> ...)` where `<sep>`
+  is the literal separator used by the CLI.
 - Coefficients are exact rationals; terms are merged and sorted deterministically
   (`Symbol` uses `BTreeMap`, `Word` orders by canonical strings).
+
+## Space Engine (general weight=n)
+The general weight-n space engine lives under `mpl_symbol::space`.
+
+Core API:
+- `Alphabet`: normalized letters + names with a deterministic canonical-string map.
+- `WordConstraints`: first-letter and adjacency constraints.
+- `Basis`: word columns + nullspace vectors with a free-variable convention.
+- `BasisStats`: standardized diagnostics for basis construction.
+- `build_integrable_basis(alpha, constraints, weight) -> Result<Basis, SymbolError>`
+- `reduce_to_basis(sym, basis, alpha) -> Result<(Vec<Coeff>, Symbol), SymbolError>`
+- `check_integrable_n(sym) -> Result<bool, SymbolError>`
+- `Basis::stats()` exposes `BasisStats` for deterministic diagnostics.
+
+The CLI does not expose `check_integrable_n` or basis building; use the library
+API or `crates/symbol/src/space/tests_weight_n.rs` as a reference.
+
+See `docs/space_engine.md` for algorithm details.
+
+## Algorithms (integrability + basis)
+Integrability constraints (general weight-n):
+- For each weight `w >= 2` and adjacent position `k`, group terms by CONTEXT
+  (word with positions `k` and `k+1` removed).
+- For each context and variable pair `(vi, vj)`, require:
+  sum(coeff * wedge(dlog(l_k), dlog(l_{k+1}))) == 0.
+- Deterministic sampling uses a fixed env table; singular samples are skipped.
+  If fewer than two valid samples exist for a constraint, return
+  `SymbolError::InsufficientSamples`.
+
+Basis construction:
+- Enumerate all allowed words lexicographically by letter id.
+- Build sparse constraint rows from the integrability checks.
+- Streaming elimination uses REF/dictionary form:
+  - pivot is the smallest column index in a row
+  - no global RREF cleanup is performed
+- Compute the nullspace via back-substitution in descending pivot order to
+  preserve the free-variable basis convention used by `reduce_to_basis`.
+
+Determinism sources:
+- Word enumeration is lexicographic by id sequence.
+- Pivot selection always uses the smallest column index in a row.
+- Free-variable basis vectors have identity entries at free columns.
 
 ## Rewrite Layer (egg) (current milestone)
 Language nodes (opaque wrappers for functions):
@@ -92,10 +141,20 @@ Runner/Extractor:
 - Cost model: `egg::AstSize` (deterministic).
 - Runner returns the best extracted expression even when limits are hit.
 
-## CLI Usage (with examples)
-All commands parse then normalize input before further processing.
+## CLI
+Subcommands:
+- `normalize --expr ...`
+- `symbol --expr ...`
+- `check-integrable --expr ...` (weight-2 only)
+- `simplify --expr ... [--iters N] [--node-limit N] [--time-limit-ms N] [--aggressive] [--no-rewrite] [--no-symbol-guard]`
+- `version`
 
-### normalize
+Notes:
+- The symbol guard uses `check_integrable` (weight-2). If symbolization or
+  integrability returns an error, the guard is skipped.
+- General weight-n integrability and basis building are library-only APIs.
+
+Examples:
 ```bash
 cargo run -p mpl-simplify -- normalize --expr "(+ x y 0 3 x)"
 # => (+ 3 x x y)
@@ -103,56 +162,15 @@ cargo run -p mpl-simplify -- normalize --expr "(+ x y 0 3 x)"
 cargo run -p mpl-simplify -- normalize --expr "(/ x y z)"
 # => (* (^ y -1) (^ z -1) x)
 
-cargo run -p mpl-simplify -- normalize --expr "(^ (^ x 2) 3)"
-# => (^ x 6)
-```
-
-### symbol
-```bash
 cargo run -p mpl-simplify -- symbol --expr "(log x)"
 # => 1 * (x)
 
-cargo run -p mpl-simplify -- symbol --expr "(li2 x)"
-# => -1 * ((+ 1 (* -1 x)) ⊗ x)
-
-cargo run -p mpl-simplify -- symbol --expr "(* (log x) (log y))"
-# => 1 * (x ⊗ y)
-# => 1 * (y ⊗ x)
-```
-
-### check-integrable
-```bash
 cargo run -p mpl-simplify -- check-integrable --expr "(* (log x) (log y))"
 # => true
-
-cargo run -p mpl-simplify -- check-integrable --expr "(li2 x)"
-# => true
-```
-
-### simplify
-Defaults: `iters=20`, `node_limit=50000`, `time_limit_ms=300`, safe rules, symbol guard on.
-
-Symbol guard behavior:
-- If `symbol(before) != symbol(after)`, return the baseline.
-- If `check_integrable` is false, return the baseline.
-- If symbolization fails (NotImplemented or other error), the guard is skipped.
-
-```bash
-cargo run -p mpl-simplify -- simplify --expr "(+ (* x y) (* x z))"
-# => (+ (* x y) (* x z))  (safe rules; same canonical form)
 
 cargo run -p mpl-simplify -- simplify --aggressive --expr "(+ (* x y) (* x z))"
 # => (* (+ y z) x)
 
-cargo run -p mpl-simplify -- simplify --aggressive --expr "(li2 (+ (* x y) (* x z)))"
-# => (li2 (+ (* x y) (* x z)))  (guard blocks factoring inside li2)
-
-cargo run -p mpl-simplify -- simplify --aggressive --no-symbol-guard --expr "(li2 (+ (* x y) (* x z)))"
-# => (li2 (* (+ y z) x))
-```
-
-### version
-```bash
 cargo run -p mpl-simplify -- version
 # => 0.1.2
 ```
@@ -164,42 +182,49 @@ Tests:
 - `tests/cli.rs`: CLI coverage for normalize, symbol, check-integrable, simplify,
   and guard behavior.
 - `crates/rewrite/src/lib.rs` tests: lower/lift roundtrip and aggressive factoring.
-- No ignored tests are present.
+- `crates/symbol/src/space/tests_weight_n.rs`: general weight-n tests with ignored
+  stress cases (run with `--ignored`).
 
-Benchmarks:
-- `benches/parse_normalize.rs`: parse + normalize throughput in `mpl-ir`.
-- `benches/rewrite_simplify.rs`: rewrite simplification throughput (aggressive).
+Toy oracle:
+- For alphabet `{x, y}` with no constraints, the integrable subspace dimension at
+  weight `w` is `w + 1`.
 
-Determinism expectations:
-- Avoid reliance on `HashMap` iteration order when printing or testing.
-- `mpl-ir` sorts canonical strings for `Add`/`Mul` output.
-- `mpl-symbol` uses `BTreeMap` and ordered `Word` comparisons.
-- `mpl-rewrite` extraction uses `AstSize` with a fixed runner config.
+BasisStats one-line format (stable):
+- `ncols`, `dim`, `rank`, `rows_attempted`, `rows_inserted`, `samples_used`,
+  `envs_total`, `rows_skipped_singular`, `constraints_insufficient_samples`,
+  `vars`, `max_row_nnz`, `avg_row_nnz`.
+  `samples_used` counts valid sampled constraint-rows (not env count). `rank`
+  equals the number of inserted pivot rows; `dim` is the nullspace size.
+
+For stress tests, use `--test-threads=1` to avoid interleaved stats output.
 
 Run:
 ```bash
 cargo fmt --check
 cargo test --workspace
+cargo test -p mpl-symbol
+cargo test -p mpl-symbol --release -- --ignored --nocapture --test-threads=1
 # If CI enforces clippy:
 cargo clippy --all-targets --all-features -- -D warnings
 cargo bench
 ```
 
-## Roadmap (next small versions)
-- v0.1.3: smarter symbol guard with letter-equivalence canonicalization.
-  Acceptance: guard allows algebraically equivalent letters while remaining
-  deterministic; new tests cover guard relaxation without symbol drift.
-- v0.1.4: weight-2 projection (integrable subspace residual).
-  Acceptance: `project_to_integrable` returns basis coefficients + residual with
-  deterministic ordering and tests for positive/negative cases.
-- v0.1.5: extend symbol nodes (Li3 or minimal GPL carrier) without identities.
-  Acceptance: new node parsed/printed, symbol rule added, integrability tests added.
-- Rewrite explainability (egg explain or internal record).
-  Acceptance: `simplify --explain` emits a reproducible derivation trace.
-- Benchmark expansion.
-  Acceptance: at least one new micro-bench per new rule group or symbol feature.
+Benchmarks:
+- `benches/parse_normalize.rs`: parse + normalize throughput in `mpl-ir`.
+- `benches/rewrite_simplify.rs`: rewrite simplification throughput (aggressive).
+
+## v0.1.4 Release Notes
+- Added general weight-n integrability via `check_integrable_n`.
+- Added the space engine: `Alphabet`, `WordConstraints`, `Basis`,
+  `build_integrable_basis`, and `reduce_to_basis`.
+- Standardized basis diagnostics via `BasisStats` and one-line formatting.
+- Improved scalability with streaming REF/dictionary elimination plus
+  back-substitution (no global RREF cleanup).
+- Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release
+  label for documentation and planning purposes.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.
 One hard constraint: do not change canonical invariants or add rewrite rules
 without updating tests (especially `tests/regression_normalize.rs`).
+

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::sync::{Mutex, OnceLock};
 
     use mpl_ir::{parse_sexpr, Expr};
     use num_rational::Rational64;
@@ -12,6 +13,8 @@ mod tests {
     use crate::space::{
         build_integrable_basis, check_integrable_n, reduce_to_basis, Alphabet, WordConstraints,
     };
+
+    static PRINT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
     fn r(n: i64, d: i64) -> Coeff {
         Rational64::new(n, d)
@@ -104,6 +107,11 @@ mod tests {
             s.add_term(Word(w), r(1, 1));
         }
         s
+    }
+
+    fn print_stats(stats: &crate::space::BasisStats) {
+        let _guard = PRINT_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+        eprintln!("\n{}", stats.one_line());
     }
 
     fn multiset_words_xy(a: usize, b: usize, idx_x: usize, idx_y: usize) -> Vec<Vec<usize>> {
@@ -226,6 +234,19 @@ mod tests {
     }
 
     #[test]
+    fn basis_stats_are_deterministic() {
+        let alpha = toy_alphabet_xy();
+        let c = no_constraints();
+        let w = 5;
+
+        let b1 = build_integrable_basis(&alpha, &c, w).unwrap();
+        let b2 = build_integrable_basis(&alpha, &c, w).unwrap();
+
+        assert_eq!(b1.stats(), b2.stats());
+        assert_eq!(b1.stats().one_line(), b2.stats().one_line());
+    }
+
+    #[test]
     fn basis_word_order_xy_is_lexicographic() {
         let alpha = toy_alphabet_xy();
         let c = no_constraints();
@@ -315,6 +336,7 @@ mod tests {
         let w = 10;
 
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
+        print_stats(basis.stats());
         assert_eq!(basis.words.len(), 1usize << w);
         assert_eq!(basis.vectors.len(), w + 1);
 
@@ -330,6 +352,7 @@ mod tests {
         let w = 12;
 
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
+        print_stats(basis.stats());
         assert_eq!(basis.words.len(), 1usize << w);
         assert_eq!(basis.vectors.len(), w + 1);
 
@@ -356,6 +379,7 @@ mod tests {
 
         let b1 = build_integrable_basis(&alpha, &c, w).unwrap();
         let b2 = build_integrable_basis(&alpha, &c, w).unwrap();
+        print_stats(b1.stats());
         assert_eq!(b1.words, b2.words);
         assert_eq!(b1.vectors, b2.vectors);
 
@@ -373,7 +397,7 @@ mod tests {
         let w = 14;
 
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
-        eprintln!("ncols={}, dim={}", basis.words.len(), basis.vectors.len());
+        print_stats(basis.stats());
         assert_eq!(basis.words.len(), 1usize << w);
         assert_eq!(basis.vectors.len(), w + 1);
 
@@ -389,7 +413,7 @@ mod tests {
         let w = 16;
 
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
-        eprintln!("ncols={}, dim={}", basis.words.len(), basis.vectors.len());
+        print_stats(basis.stats());
         assert_eq!(basis.words.len(), 1usize << w);
         assert_eq!(basis.vectors.len(), w + 1);
     }
@@ -403,7 +427,7 @@ mod tests {
 
         let b1 = build_integrable_basis(&alpha, &c, w).unwrap();
         let b2 = build_integrable_basis(&alpha, &c, w).unwrap();
-        eprintln!("ncols={}, dim={}", b1.words.len(), b1.vectors.len());
+        print_stats(b1.stats());
         assert_eq!(b1.words, b2.words);
         assert_eq!(b1.vectors, b2.vectors);
 
@@ -422,7 +446,7 @@ mod tests {
 
         let b1 = build_integrable_basis(&alpha, &c, w).unwrap();
         let b2 = build_integrable_basis(&alpha, &c, w).unwrap();
-        eprintln!("ncols={}, dim={}", b1.words.len(), b1.vectors.len());
+        print_stats(b1.stats());
         assert_eq!(b1.words, b2.words);
         assert_eq!(b1.vectors, b2.vectors);
     }
