@@ -35,7 +35,9 @@ fn cli_rational_literal() {
     assert!(exe.exists(), "binary not found at {}", exe.display());
     let mut cmd = Command::new(exe);
     cmd.args(["normalize", "--expr", "1/2"]);
-    cmd.assert().success().stdout(predicate::str::contains("1/2"));
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("1/2"));
 }
 
 #[test]
@@ -74,4 +76,32 @@ fn cli_check_integrable_log_log() {
     let mut cmd = Command::new(exe);
     cmd.args(["check-integrable", "--expr", "(* (log x) (log y))"]);
     cmd.assert().success().stdout(predicate::eq("true\n"));
+}
+
+#[test]
+fn cli_simplify_aggressive_factors() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args(["simplify", "--aggressive", "--expr", "(+ (* x y) (* x z))"]);
+    let pred = predicate::str::contains("(+ y z)").and(predicate::str::contains("x"));
+    cmd.assert().success().stdout(pred);
+}
+
+#[test]
+fn cli_simplify_guard_blocks_li2_factoring() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args([
+        "simplify",
+        "--aggressive",
+        "--expr",
+        "(li2 (+ (* x y) (* x z)))",
+    ]);
+    let pred = predicate::str::contains("(li2")
+        .and(predicate::str::contains("(* x y)"))
+        .and(predicate::str::contains("(* x z)"))
+        .and(predicate::str::contains("(+ y z)").not());
+    cmd.assert().success().stdout(pred);
 }

@@ -1,6 +1,9 @@
+mod pipeline;
+
 use clap::{Parser, Subcommand};
 use mpl_ir::parse_sexpr;
 use mpl_symbol::{check_integrable, symbol, Coeff};
+use pipeline::{simplify_expr, SimplifyOptions};
 
 #[derive(Parser)]
 #[command(name = "mpl-simplify")]
@@ -26,6 +29,23 @@ enum Commands {
     CheckIntegrable {
         #[arg(long)]
         expr: String,
+    },
+    /// Simplify an expression using the rewrite engine.
+    Simplify {
+        #[arg(long)]
+        expr: String,
+        #[arg(long, default_value_t = 20)]
+        iters: usize,
+        #[arg(long, default_value_t = 50_000)]
+        node_limit: usize,
+        #[arg(long, default_value_t = 300)]
+        time_limit_ms: u64,
+        #[arg(long)]
+        aggressive: bool,
+        #[arg(long)]
+        no_rewrite: bool,
+        #[arg(long)]
+        no_symbol_guard: bool,
     },
     /// Print version information.
     Version,
@@ -72,6 +92,27 @@ fn run(cli: Cli) -> Result<(), String> {
             let sym = symbol(&normalized).map_err(|err| err.to_string())?;
             let result = check_integrable(&sym).map_err(|err| err.to_string())?;
             println!("{}", if result { "true" } else { "false" });
+            Ok(())
+        }
+        Commands::Simplify {
+            expr,
+            iters,
+            node_limit,
+            time_limit_ms,
+            aggressive,
+            no_rewrite,
+            no_symbol_guard,
+        } => {
+            let opts = SimplifyOptions {
+                iters,
+                node_limit,
+                time_limit_ms,
+                aggressive,
+                no_rewrite,
+                no_symbol_guard,
+            };
+            let simplified = simplify_expr(&expr, &opts)?;
+            println!("{}", simplified.to_canonical_string());
             Ok(())
         }
         Commands::Version => {

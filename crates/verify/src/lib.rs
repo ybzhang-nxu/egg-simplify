@@ -64,7 +64,11 @@ fn eval_pow(value: Rational64, exp: i32) -> Result<Rational64, EvalError> {
         return Err(EvalError::NegativePowerOfZero);
     }
     let exp_abs = exp.unsigned_abs();
-    let (base_numer, base_denom) = if exp >= 0 { (numer, denom) } else { (denom, numer) };
+    let (base_numer, base_denom) = if exp >= 0 {
+        (numer, denom)
+    } else {
+        (denom, numer)
+    };
     let numer_pow = base_numer
         .checked_pow(exp_abs)
         .ok_or(EvalError::PowerOverflow)?;

@@ -1,12 +1,19 @@
 [package]
 name = "mpl-rewrite"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [dependencies]
 egg = "0.9"
+mpl-ir = { path = "../ir" }
 thiserror = "1"
 num-rational = { version = "0.4", features = ["serde"] }
 num-traits = "0.2"
-symbolic_expressions = "5"
-itertools = "0.13"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "rewrite_simplify"
+harness = false
+path = "../../benches/rewrite_simplify.rs"

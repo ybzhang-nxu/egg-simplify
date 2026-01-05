@@ -426,9 +426,7 @@ fn normalize_pow(base: &Expr, exp: i32) -> Expr {
             let inner_pow = normalize_pow(&inner, exp);
             Expr::Neg(Box::new(inner_pow))
         }
-        other => {
-            Expr::Pow(Box::new(other), exp)
-        }
+        other => Expr::Pow(Box::new(other), exp),
     }
 }
 
@@ -445,7 +443,11 @@ fn pow_rational(value: Rational64, exp: i32) -> Option<Rational64> {
     if exp < 0 && numer == 0 {
         return None;
     }
-    let (base_numer, base_denom) = if exp >= 0 { (numer, denom) } else { (denom, numer) };
+    let (base_numer, base_denom) = if exp >= 0 {
+        (numer, denom)
+    } else {
+        (denom, numer)
+    };
     let numer_pow = base_numer.checked_pow(exp_abs)?;
     let denom_pow = base_denom.checked_pow(exp_abs)?;
     Some(Rational64::new(numer_pow, denom_pow))
@@ -527,10 +529,7 @@ mod tests {
 
     #[test]
     fn normalize_div_nary() {
-        assert_eq!(
-            canon("(/ x y z)"),
-            "(* (^ y -1) (^ z -1) x)"
-        );
+        assert_eq!(canon("(/ x y z)"), "(* (^ y -1) (^ z -1) x)");
     }
 
     #[test]
