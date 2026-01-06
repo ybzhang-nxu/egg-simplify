@@ -1,8 +1,11 @@
-use egg::{rewrite as rw, Rewrite};
+use egg::{rewrite as rw, Analysis, Rewrite};
 
-use crate::lang::{ConstFold, Lang};
+use crate::lang::Lang;
 
-pub(crate) fn safe_rules() -> Vec<Rewrite<Lang, ConstFold>> {
+pub(crate) fn safe_rules<N>() -> Vec<Rewrite<Lang, N>>
+where
+    N: Analysis<Lang> + 'static,
+{
     vec![
         rw!("add-zero"; "(+ ?a 0)" => "?a"),
         rw!("add-zero-comm"; "(+ 0 ?a)" => "?a"),
@@ -15,7 +18,10 @@ pub(crate) fn safe_rules() -> Vec<Rewrite<Lang, ConstFold>> {
     ]
 }
 
-pub(crate) fn aggressive_rules() -> Vec<Rewrite<Lang, ConstFold>> {
+pub(crate) fn aggressive_rules<N>() -> Vec<Rewrite<Lang, N>>
+where
+    N: Analysis<Lang> + 'static,
+{
     vec![
         rw!("factor-left"; "(+ (* ?a ?b) (* ?a ?c))" => "(* ?a (+ ?b ?c))"),
         rw!("factor-right"; "(+ (* ?b ?a) (* ?c ?a))" => "(* (+ ?b ?c) ?a)"),

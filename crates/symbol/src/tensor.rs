@@ -56,6 +56,18 @@ pub struct Symbol {
 }
 
 impl Symbol {
+    /// Build a symbol from explicit terms, combining duplicates and dropping zeros.
+    pub fn from_terms<I>(terms: I) -> Self
+    where
+        I: IntoIterator<Item = (Word, Coeff)>,
+    {
+        let mut out = Self::zero();
+        for (word, coeff) in terms {
+            out.add_term(word, coeff);
+        }
+        out
+    }
+
     pub fn zero() -> Self {
         Self {
             terms: BTreeMap::new(),

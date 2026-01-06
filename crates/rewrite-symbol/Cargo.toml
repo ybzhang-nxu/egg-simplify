@@ -1,0 +1,16 @@
+[package]
+name = "mpl-rewrite-symbol"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+egg = "0.9"
+mpl-ir = { path = "../ir" }
+mpl-rewrite = { path = "../rewrite" }
+mpl-symbol = { path = "../symbol" }
+num-rational = "0.4"
+num-traits = "0.2"
+thiserror = "1"
+
+[dev-dependencies]
+assert_cmd = "2"

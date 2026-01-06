@@ -3,6 +3,7 @@ members = [
     "crates/cli",
     "crates/ir",
     "crates/rewrite",
+    "crates/rewrite-symbol",
     "crates/symbol",
     "crates/verify",
 ]

@@ -172,10 +172,10 @@ mod tests {
         let alpha = toy_alphabet_xy();
 
         let s0 = Symbol::zero();
-        assert_eq!(check_integrable_n(&s0).unwrap(), true);
+        assert!(check_integrable_n(&s0).unwrap());
 
         let s1 = symbol_single_word(&alpha, &[0], r(3, 1));
-        assert_eq!(check_integrable_n(&s1).unwrap(), true);
+        assert!(check_integrable_n(&s1).unwrap());
     }
 
     #[test]
@@ -186,11 +186,11 @@ mod tests {
 
         let shuf_words = permutations(&[x.clone(), y.clone(), z.clone()]);
         let shuf = symbol_from_words(shuf_words);
-        assert_eq!(check_integrable_n(&shuf).unwrap(), true);
+        assert!(check_integrable_n(&shuf).unwrap());
 
         let mut bad = Symbol::zero();
         bad.add_term(Word(vec![x, y, z]), r(1, 1));
-        assert_eq!(check_integrable_n(&bad).unwrap(), false);
+        assert!(!check_integrable_n(&bad).unwrap());
     }
 
     #[test]
@@ -202,11 +202,11 @@ mod tests {
 
         let shuf_words = permutations(&[a.clone(), b.clone(), c.clone(), d.clone()]);
         let shuf = symbol_from_words(shuf_words);
-        assert_eq!(check_integrable_n(&shuf).unwrap(), true);
+        assert!(check_integrable_n(&shuf).unwrap());
 
         let mut bad = Symbol::zero();
         bad.add_term(Word(vec![a, b, c, d]), r(1, 1));
-        assert_eq!(check_integrable_n(&bad).unwrap(), false);
+        assert!(!check_integrable_n(&bad).unwrap());
     }
 
     #[test]
@@ -228,7 +228,7 @@ mod tests {
 
             for v in &basis.vectors {
                 let s = symbol_from_vector(&alpha, &basis.words, v);
-                assert_eq!(check_integrable_n(&s).unwrap(), true);
+                assert!(check_integrable_n(&s).unwrap());
             }
         }
     }
@@ -280,7 +280,7 @@ mod tests {
         ];
 
         let sym = combine_basis(&alpha, &basis.words, &basis.vectors, &coeffs_in);
-        assert_eq!(check_integrable_n(&sym).unwrap(), true);
+        assert!(check_integrable_n(&sym).unwrap());
 
         let (coeffs_out, residual) = reduce_to_basis(&sym, &basis, &alpha).unwrap();
         assert!(
@@ -302,7 +302,7 @@ mod tests {
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
 
         let sym = symbol_single_word(&alpha, &[0, 1, 0, 1], r(1, 1));
-        assert_eq!(check_integrable_n(&sym).unwrap(), false);
+        assert!(!check_integrable_n(&sym).unwrap());
 
         match reduce_to_basis(&sym, &basis, &alpha) {
             Ok((_coeffs, residual)) => {
@@ -341,7 +341,7 @@ mod tests {
         assert_eq!(basis.vectors.len(), w + 1);
 
         let s0 = symbol_from_vector(&alpha, &basis.words, &basis.vectors[0]);
-        assert_eq!(check_integrable_n(&s0).unwrap(), true);
+        assert!(check_integrable_n(&s0).unwrap());
     }
 
     #[ignore]
@@ -364,7 +364,7 @@ mod tests {
         for w_ids in words {
             sym.add_term(word_from_ids(&alpha, &w_ids), r(1, 1));
         }
-        assert_eq!(check_integrable_n(&sym).unwrap(), true);
+        assert!(check_integrable_n(&sym).unwrap());
 
         let (_coeffs, residual) = reduce_to_basis(&sym, &basis, &alpha).unwrap();
         assert!(residual.is_zero());
@@ -385,7 +385,7 @@ mod tests {
 
         for i in 0..b1.vectors.len().min(3) {
             let s = symbol_from_vector(&alpha, &b1.words, &b1.vectors[i]);
-            assert_eq!(check_integrable_n(&s).unwrap(), true);
+            assert!(check_integrable_n(&s).unwrap());
         }
     }
 
@@ -402,7 +402,7 @@ mod tests {
         assert_eq!(basis.vectors.len(), w + 1);
 
         let s0 = symbol_from_vector(&alpha, &basis.words, &basis.vectors[0]);
-        assert_eq!(check_integrable_n(&s0).unwrap(), true);
+        assert!(check_integrable_n(&s0).unwrap());
     }
 
     #[ignore]
@@ -433,7 +433,7 @@ mod tests {
 
         for i in 0..b1.vectors.len().min(2) {
             let s = symbol_from_vector(&alpha, &b1.words, &b1.vectors[i]);
-            assert_eq!(check_integrable_n(&s).unwrap(), true);
+            assert!(check_integrable_n(&s).unwrap());
         }
     }
 
@@ -460,7 +460,7 @@ mod tests {
             ids.push(i % 2);
         }
         let sym = symbol_single_word(&alpha, &ids, r(1, 1));
-        assert_eq!(check_integrable_n(&sym).unwrap(), false);
+        assert!(!check_integrable_n(&sym).unwrap());
     }
 
     #[test]

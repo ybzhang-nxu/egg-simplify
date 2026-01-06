@@ -46,6 +46,18 @@ enum Commands {
         no_rewrite: bool,
         #[arg(long)]
         no_symbol_guard: bool,
+        #[arg(long)]
+        symbol_aware: bool,
+        #[arg(long, requires = "symbol_aware")]
+        symbol_fuel: Option<u64>,
+        #[arg(long, requires = "symbol_aware")]
+        symbol_weight_limit: Option<usize>,
+        #[arg(long, requires = "symbol_aware")]
+        unknown_penalty: Option<u64>,
+        #[arg(long, requires = "symbol_aware")]
+        non_integrable_penalty: Option<u64>,
+        #[arg(long, requires = "symbol_aware")]
+        conflict_penalty: Option<u64>,
     },
     /// Print version information.
     Version,
@@ -102,6 +114,12 @@ fn run(cli: Cli) -> Result<(), String> {
             aggressive,
             no_rewrite,
             no_symbol_guard,
+            symbol_aware,
+            symbol_fuel,
+            symbol_weight_limit,
+            unknown_penalty,
+            non_integrable_penalty,
+            conflict_penalty,
         } => {
             let opts = SimplifyOptions {
                 iters,
@@ -110,6 +128,12 @@ fn run(cli: Cli) -> Result<(), String> {
                 aggressive,
                 no_rewrite,
                 no_symbol_guard,
+                symbol_aware,
+                symbol_fuel,
+                symbol_weight_limit,
+                unknown_penalty,
+                non_integrable_penalty,
+                conflict_penalty,
             };
             let simplified = simplify_expr(&expr, &opts)?;
             println!("{}", simplified.to_canonical_string());

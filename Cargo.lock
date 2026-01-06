@@ -476,6 +476,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mpl-rewrite-symbol"
+version = "0.1.1"
+dependencies = [
+ "assert_cmd",
+ "egg",
+ "mpl-ir",
+ "mpl-rewrite",
+ "mpl-symbol",
+ "num-rational",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "mpl-simplify"
 version = "0.1.2"
 dependencies = [
@@ -483,6 +497,7 @@ dependencies = [
  "clap",
  "mpl-ir",
  "mpl-rewrite",
+ "mpl-rewrite-symbol",
  "mpl-symbol",
  "predicates",
 ]

@@ -105,3 +105,74 @@ fn cli_simplify_guard_blocks_li2_factoring() {
         .and(predicate::str::contains("(+ y z)").not());
     cmd.assert().success().stdout(pred);
 }
+
+#[test]
+fn cli_simplify_default_path_unchanged() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args(["simplify", "--aggressive", "--expr", "(+ (* x y) (* x z))"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::eq("(* (+ y z) x)\n"));
+}
+
+#[test]
+fn cli_simplify_no_rewrite_beats_symbol_aware() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args([
+        "simplify",
+        "--no-rewrite",
+        "--symbol-aware",
+        "--aggressive",
+        "--expr",
+        "(+ (* x y) (* x z))",
+    ]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::eq("(+ (* x y) (* x z))\n"));
+}
+
+#[test]
+fn cli_symbol_fuel_requires_symbol_aware() {
+    let exe = bin_path();
+    assert!(exe.exists(), "binary not found at {}", exe.display());
+    let mut cmd = Command::new(exe);
+    cmd.args(["simplify", "--symbol-fuel", "10", "--expr", "(+ x y)"]);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("symbol-aware"));
+}
+
+#[test]
+fn cli_simplify_symbol_aware_deterministic_across_processes() {
+    let exprs = ["(+ (* x y) (* x z))", "(+ (+ x y) z)", "(* (* x y) z)"];
+    let bin = assert_cmd::cargo::cargo_bin!("mpl-simplify");
+
+    for expr in exprs {
+        let mut outputs = Vec::new();
+        for _ in 0..20 {
+            let output = std::process::Command::new(bin.as_os_str())
+                .arg("simplify")
+                .arg("--aggressive")
+                .arg("--iters")
+                .arg("6")
+                .arg("--node-limit")
+                .arg("10000")
+                .arg("--symbol-aware")
+                .arg("--symbol-fuel")
+                .arg("100")
+                .arg("--expr")
+                .arg(expr)
+                .output()
+                .expect("run mpl-simplify");
+            assert!(output.status.success(), "status: {:?}", output.status);
+            outputs.push(String::from_utf8_lossy(&output.stdout).trim().to_string());
+        }
+        for out in outputs.iter().skip(1) {
+            assert_eq!(out, &outputs[0], "expr={expr}");
+        }
+    }
+}

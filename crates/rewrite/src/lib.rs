@@ -11,7 +11,7 @@ use mpl_ir::Expr;
 
 use crate::extract::extract_best;
 use crate::lang::{ConstFold, Lang};
-use crate::rules::rules;
+use crate::rules::rules_for_mode;
 
 pub use config::{RewriteConfig, RewriteError, RewriteMode};
 pub use extract::lift_expr;
@@ -25,7 +25,7 @@ pub fn simplify_algebra(expr: &Expr, cfg: &RewriteConfig) -> Result<Expr, Rewrit
         .with_iter_limit(cfg.iters)
         .with_node_limit(cfg.node_limit)
         .with_time_limit(Duration::from_millis(cfg.time_limit_ms))
-        .run(&rules(cfg.mode));
+        .run(&rules_for_mode::<ConstFold>(cfg.mode));
     let best = extract_best(&runner);
     lift_expr(&best)
 }

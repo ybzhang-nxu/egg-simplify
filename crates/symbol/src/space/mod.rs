@@ -88,9 +88,11 @@ pub fn build_integrable_basis(
     let ncols = words.len();
     let letters = normalized_letters(alpha);
     let vars = collect_vars_from_letters(&letters);
-    let mut stats = BasisStats::default();
-    stats.ncols = ncols;
-    stats.vars_count = vars.len();
+    let mut stats = BasisStats {
+        ncols,
+        vars_count: vars.len(),
+        ..Default::default()
+    };
 
     if ncols == 0 {
         stats.dim = 0;
@@ -584,10 +586,7 @@ fn cached_dlog_value(
 
 fn insert_row(pivot_rows: &mut BTreeMap<usize, SparseRow>, mut row: SparseRow) -> Option<usize> {
     loop {
-        let pivot_col = match row.keys().next().copied() {
-            Some(col) => col,
-            None => return None,
-        };
+        let pivot_col = row.keys().next().copied()?;
 
         if let Some(existing) = pivot_rows.get(&pivot_col) {
             let factor = *row.get(&pivot_col).unwrap();

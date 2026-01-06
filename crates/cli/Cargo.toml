@@ -7,6 +7,7 @@ edition = "2021"
 clap = { version = "4", features = ["derive"] }
 mpl-ir = { path = "../ir" }
 mpl-rewrite = { path = "../rewrite" }
+mpl-rewrite-symbol = { path = "../rewrite-symbol" }
 mpl-symbol = { path = "../symbol" }
 
 [dev-dependencies]
