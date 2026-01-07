@@ -4,8 +4,8 @@
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
 expressions. It provides a canonical normal form (v0.1.1 baseline), a minimal
 symbol layer for log/li2 with general weight-n integrability and a space engine,
-and an egg-based rewrite engine with a conservative symbol guard to prevent
-rewrites from violating defined symbol constraints.
+an egg-based rewrite engine with a conservative symbol guard, plus an optional
+symbol-aware extractor backed by deterministic fingerprints.
 
 This project intentionally avoids branch-sensitive functional identities and
 full MPL/GPL reconstruction. It does not implement log/li2 identities or
@@ -13,15 +13,16 @@ function reconstruction; those are deferred to future milestones.
 
 ## Architecture & Crates
 Dependency DAG (no cycles, per AGENTS.md):
-`mpl-ir` <- {`mpl-symbol`, `mpl-rewrite`, `mpl-verify`} <- `mpl-simplify`.
+`mpl-ir` <- {`mpl-symbol`, `mpl-rewrite`, `mpl-verify`}; `mpl-rewrite-symbol` <- {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`}; `mpl-simplify` -> {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`, `mpl-rewrite-symbol`}.
 
 | Crate | Purpose | Key Modules / Public API | Depends On |
 | --- | --- | --- | --- |
 | `mpl-ir` | AST, parser, normalization, canonical printing | `Expr`, `parse_sexpr`, `Expr::normalize`, `Expr::to_canonical_string`, `ParseError` (`crates/ir/src/lib.rs`) | (none) |
 | `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `symbol`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
 | `mpl-rewrite` | egg language/rules/lowering/lifting + simplifier | `simplify_algebra`, `RewriteConfig`, `RewriteMode`, `RewriteError`, `lower_expr`, `lift_expr` (`crates/rewrite/src/*.rs`) | `mpl-ir`, `egg` |
+| `mpl-rewrite-symbol` | Symbol-aware rewrite pipeline + fingerprinting + deterministic extractor | `simplify_symbol_aware`, `SymbolContext`, `FingerprintConfig`, `PenaltyConfig` (`crates/rewrite-symbol/src/lib.rs`) | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
 | `mpl-verify` | Exact rational eval + sample equivalence | `eval_rational`, `equiv_on_samples`, `EvalError` (`crates/verify/src/lib.rs`) | `mpl-ir` |
-| `mpl-simplify` | CLI entry point | Subcommands in `crates/cli/src/main.rs` | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
+| `mpl-simplify` | CLI entry point | Subcommands in `crates/cli/src/main.rs` | `mpl-ir`, `mpl-rewrite`, `mpl-symbol`, `mpl-rewrite-symbol` |
 
 See `docs/ARCHITECTURE.md` for a short architecture overview.
 
@@ -141,17 +142,24 @@ Runner/Extractor:
 - Cost model: `egg::AstSize` (deterministic).
 - Runner returns the best extracted expression even when limits are hit.
 
+Symbol-aware rewrite (optional):
+- `mpl-rewrite-symbol` provides a symbol-aware extractor and fingerprint cache.
+- Fingerprints degrade to `Unknown` instead of failing, preserving determinism.
+- Extractor tie-breaks use a stable structural hash (no randomized hasher).
+
 ## CLI
 Subcommands:
 - `normalize --expr ...`
 - `symbol --expr ...`
 - `check-integrable --expr ...` (weight-2 only)
-- `simplify --expr ... [--iters N] [--node-limit N] [--time-limit-ms N] [--aggressive] [--no-rewrite] [--no-symbol-guard]`
+- `simplify --expr ... [--iters N] [--node-limit N] [--time-limit-ms N] [--aggressive] [--no-rewrite] [--no-symbol-guard] [--symbol-aware] [--symbol-fuel N] [--symbol-weight-limit N] [--unknown-penalty N] [--non-integrable-penalty N] [--conflict-penalty N]`
 - `version`
 
 Notes:
 - The symbol guard uses `check_integrable` (weight-2). If symbolization or
   integrability returns an error, the guard is skipped.
+- `--symbol-aware` enables the symbol-aware extractor; `--symbol-fuel` defaults
+  to 100 and the symbol-aware flags require `--symbol-aware`.
 - General weight-n integrability and basis building are library-only APIs.
 
 Examples:
@@ -169,6 +177,9 @@ cargo run -p mpl-simplify -- check-integrable --expr "(* (log x) (log y))"
 # => true
 
 cargo run -p mpl-simplify -- simplify --aggressive --expr "(+ (* x y) (* x z))"
+# => (* (+ y z) x)
+
+cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 100 --expr "(+ (* x y) (* x z))"
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
@@ -213,11 +224,19 @@ Benchmarks:
 - `benches/parse_normalize.rs`: parse + normalize throughput in `mpl-ir`.
 - `benches/rewrite_simplify.rs`: rewrite simplification throughput (aggressive).
 
+Manual tools:
+- `cargo run -p mpl-rewrite-symbol --bin symbol_param_scan` writes
+  `reports/phase2_symbol_scan.md` and `reports/phase2_symbol_scan.csv`.
+
 ## v0.1.4 Release Notes
 - Added general weight-n integrability via `check_integrable_n`.
 - Added the space engine: `Alphabet`, `WordConstraints`, `Basis`,
   `build_integrable_basis`, and `reduce_to_basis`.
 - Standardized basis diagnostics via `BasisStats` and one-line formatting.
+- Added `mpl-rewrite-symbol` with deterministic fingerprinting, cache, and
+  symbol-aware extractor tie-breaking.
+- Added `--symbol-aware` CLI pipeline with symbol fuel/penalty knobs.
+- Added a deterministic symbol parameter scan tool and report outputs.
 - Improved scalability with streaming REF/dictionary elimination plus
   back-substitution (no global RREF cleanup).
 - Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release

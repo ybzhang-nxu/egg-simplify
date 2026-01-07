@@ -120,8 +120,12 @@ fn fingerprint_kind(expr: &Expr, ctx: &Arc<SymbolContext>) -> String {
         Fingerprint::Unknown { reason, .. } => format!("Unknown({})", reason_name(&reason)),
         Fingerprint::Conflict { .. } => "Conflict".to_string(),
         Fingerprint::ByWeight(map) => {
-            let keys: Vec<String> = map.keys().map(|w| w.to_string()).collect();
-            format!("ByWeight([{}])", keys.join(","))
+            let keys: Vec<String> = map
+                .keys()
+                .filter(|weight| **weight != 0)
+                .map(|weight| weight.to_string())
+                .collect();
+            format!("ByWeight(keys_excluding_0=[{}])", keys.join(","))
         }
     }
 }
