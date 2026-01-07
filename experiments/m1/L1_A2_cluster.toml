@@ -1,0 +1,52 @@
+# L1: A2 cluster (pentagon) letter set + cluster adjacency as pair constraint
+# Source: standard A2 cluster example (x_{m+1} x_{m-1} = 1 + x_m), with explicit x3,x4,x5 in terms of x1,x2.
+
+[experiment]
+id = "L1_A2_cluster"
+title = "A2 cluster (pentagon) adjacency: only cyclic neighbors allowed"
+out_dir = "reports/m1/L1_A2_cluster"
+w_min = 1
+w_max = 12
+
+[alphabet]
+vars = ["x1", "x2"]
+
+[[alphabet.letters]]
+name = "x1"
+expr = "x1"
+
+[[alphabet.letters]]
+name = "x2"
+expr = "x2"
+
+# x3 = (1 + x2)/x1
+[[alphabet.letters]]
+name = "x3"
+expr = "(/ (+ 1 x2) x1)"
+
+# x4 = (1 + x1 + x2)/(x1 x2)
+[[alphabet.letters]]
+name = "x4"
+expr = "(/ (+ 1 x1 x2) x1 x2)"
+
+# x5 = (1 + x1)/x2
+[[alphabet.letters]]
+name = "x5"
+expr = "(/ (+ 1 x1) x2)"
+
+[constraints]
+# First-entry: choose the initial cluster {x1,x2}. (You can broaden this to all letters later.)
+first_entry = ["x1", "x2"]
+
+# Adjacency: allow only cyclic neighbors (both directions).
+adjacency_mode = "allow"
+adjacency_pairs = [
+  ["x1","x2"], ["x2","x1"],
+  ["x2","x3"], ["x3","x2"],
+  ["x3","x4"], ["x4","x3"],
+  ["x4","x5"], ["x5","x4"],
+  ["x5","x1"], ["x1","x5"],
+]
+
+[pairs]
+count_mode = "active_word_positions"

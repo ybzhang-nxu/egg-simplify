@@ -3,27 +3,36 @@ use num_rational::Rational64;
 use num_traits::{One, Zero};
 
 use crate::error::SymbolError;
-use crate::tensor::{Symbol, Word};
+use crate::{ShuffleFuel, Symbol, Word};
 
 pub fn symbol(expr: &Expr) -> Result<Symbol, SymbolError> {
+    let mut fuel = ShuffleFuel::unlimited();
+    symbol_with_fuel(expr, &mut fuel)
+}
+
+pub fn symbol_with_fuel(expr: &Expr, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
+    symbol_inner(expr, fuel)
+}
+
+fn symbol_inner(expr: &Expr, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
     match expr {
         Expr::Log(inner) => symbol_log(inner),
         Expr::Li2(inner) => symbol_li2(inner),
         Expr::Add(children) => {
             let mut out = Symbol::zero();
             for child in children {
-                let child_symbol = symbol(child)?;
+                let child_symbol = symbol_inner(child, fuel)?;
                 out.add_assign(child_symbol);
             }
             Ok(out)
         }
-        Expr::Mul(children) => symbol_mul(children),
+        Expr::Mul(children) => symbol_mul(children, fuel),
         Expr::Neg(inner) => {
-            let mut inner_symbol = symbol(inner)?;
+            let mut inner_symbol = symbol_inner(inner, fuel)?;
             inner_symbol.scale(Rational64::from_integer(-1));
             Ok(inner_symbol)
         }
-        Expr::Pow(base, exp) => symbol_pow(base, *exp),
+        Expr::Pow(base, exp) => symbol_pow(base, *exp, fuel),
         _ => {
             if is_algebraic(expr) {
                 Ok(Symbol::zero())
@@ -66,9 +75,10 @@ fn symbol_li2(inner: &Expr) -> Result<Symbol, SymbolError> {
     Ok(out)
 }
 
-fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
+fn symbol_mul(children: &[Expr], fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
     let mut coeff = Rational64::one();
     let mut factors = Vec::new();
+    let mut has_non_rational_prefactor = false;
 
     for child in children {
         match child {
@@ -77,9 +87,26 @@ fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
             }
             Expr::Neg(inner) => {
                 coeff *= Rational64::from_integer(-1);
-                factors.push((**inner).clone());
+                match inner.as_ref() {
+                    Expr::Rational(value) => {
+                        coeff *= *value;
+                    }
+                    other => {
+                        if is_algebraic(other) {
+                            has_non_rational_prefactor = true;
+                        } else {
+                            factors.push(other.clone());
+                        }
+                    }
+                }
             }
-            other => factors.push(other.clone()),
+            other => {
+                if is_algebraic(other) {
+                    has_non_rational_prefactor = true;
+                } else {
+                    factors.push(other.clone());
+                }
+            }
         }
     }
 
@@ -91,71 +118,41 @@ fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
         return Ok(Symbol::zero());
     }
 
-    if factors.len() == 1 {
-        let mut inner = symbol(&factors[0])?;
-        inner.scale(coeff);
-        return Ok(inner);
+    if has_non_rational_prefactor {
+        return Err(SymbolError::NotImplemented(
+            "symbol for non-rational prefactor".to_string(),
+        ));
     }
 
-    if factors.len() == 2 {
-        if let (Expr::Log(left), Expr::Log(right)) = (&factors[0], &factors[1]) {
-            let left_letter = left.normalize();
-            let right_letter = right.normalize();
-            if !is_algebraic(&left_letter) || !is_algebraic(&right_letter) {
-                return Err(SymbolError::NotImplemented(
-                    "log letter must be algebraic".to_string(),
-                ));
-            }
-
-            let mut out = Symbol::zero();
-            out.add_term(Word(vec![left_letter.clone(), right_letter.clone()]), coeff);
-            out.add_term(Word(vec![right_letter, left_letter]), coeff);
-            return Ok(out);
-        }
+    let mut iter = factors.into_iter();
+    let first = match iter.next() {
+        Some(factor) => factor,
+        None => return Ok(Symbol::zero()),
+    };
+    let mut out = symbol_inner(&first, fuel)?;
+    for factor in iter {
+        let sym = symbol_inner(&factor, fuel)?;
+        out = out.shuffle_mul(&sym, fuel)?;
     }
-
-    if factors.iter().all(is_algebraic) {
-        Ok(Symbol::zero())
-    } else {
-        Err(SymbolError::NotImplemented(
-            "symbol for product".to_string(),
-        ))
-    }
+    out.scale(coeff);
+    Ok(out)
 }
 
-fn symbol_pow(base: &Expr, exp: i32) -> Result<Symbol, SymbolError> {
-    match base {
-        Expr::Log(inner) => {
-            if exp == 2 {
-                let letter = inner.normalize();
-                if !is_algebraic(&letter) {
-                    return Err(SymbolError::NotImplemented(
-                        "log letter must be algebraic".to_string(),
-                    ));
-                }
-                let mut out = Symbol::zero();
-                out.add_term(
-                    Word(vec![letter.clone(), letter]),
-                    Rational64::from_integer(2),
-                );
-                Ok(out)
-            } else {
-                Err(SymbolError::NotImplemented(format!(
-                    "symbol for (^ (log ...) {exp})"
-                )))
-            }
-        }
-        _ => {
-            if is_algebraic(base) {
-                Ok(Symbol::zero())
-            } else {
-                Err(SymbolError::NotImplemented(format!(
-                    "symbol for (^ {} {exp})",
-                    base.to_canonical_string()
-                )))
-            }
-        }
+fn symbol_pow(base: &Expr, exp: i32, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
+    if exp == 0 {
+        return Ok(Symbol::zero());
     }
+    if exp < 0 {
+        return Err(SymbolError::NotImplemented(format!(
+            "symbol for (^ {} {exp})",
+            base.to_canonical_string()
+        )));
+    }
+    if is_algebraic(base) {
+        return Ok(Symbol::zero());
+    }
+    let base_sym = symbol_inner(base, fuel)?;
+    base_sym.shuffle_pow(exp as u32, fuel)
 }
 
 fn is_algebraic(expr: &Expr) -> bool {
@@ -180,13 +177,13 @@ mod tests {
     }
 
     fn normalized(input: &str) -> Expr {
-        parse_sexpr(input).expect("parse").normalize()
+        parse_sexpr(input).unwrap().normalize()
     }
 
     #[test]
     fn symbol_log_basic() {
         let expr = normalized("(log x)");
-        let sym = symbol(&expr).expect("symbol");
+        let sym = symbol(&expr).unwrap();
         let mut expected = Symbol::zero();
         expected.add_term(Word(vec![normalized("x")]), r(1, 1));
         assert_eq!(sym, expected);
@@ -195,7 +192,7 @@ mod tests {
     #[test]
     fn symbol_li2_basic() {
         let expr = normalized("(li2 x)");
-        let sym = symbol(&expr).expect("symbol");
+        let sym = symbol(&expr).unwrap();
         let mut expected = Symbol::zero();
         expected.add_term(
             Word(vec![normalized("(+ 1 (* -1 x))"), normalized("x")]),
@@ -207,7 +204,7 @@ mod tests {
     #[test]
     fn symbol_log_log_basic() {
         let expr = normalized("(* (log x) (log y))");
-        let sym = symbol(&expr).expect("symbol");
+        let sym = symbol(&expr).unwrap();
         let mut expected = Symbol::zero();
         expected.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
         expected.add_term(Word(vec![normalized("y"), normalized("x")]), r(1, 1));
@@ -217,7 +214,7 @@ mod tests {
     #[test]
     fn symbol_log_log_same() {
         let expr = normalized("(* (log x) (log x))");
-        let sym = symbol(&expr).expect("symbol");
+        let sym = symbol(&expr).unwrap();
         let mut expected = Symbol::zero();
         expected.add_term(Word(vec![normalized("x"), normalized("x")]), r(2, 1));
         assert_eq!(sym, expected);
@@ -226,15 +223,15 @@ mod tests {
     #[test]
     fn integrable_li2() {
         let expr = normalized("(li2 x)");
-        let sym = symbol(&expr).expect("symbol");
-        assert!(check_integrable(&sym).expect("integrable"));
+        let sym = symbol(&expr).unwrap();
+        assert!(check_integrable(&sym).unwrap());
     }
 
     #[test]
     fn integrable_false_for_single_word() {
         let mut sym = Symbol::zero();
         sym.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
-        assert!(!check_integrable(&sym).expect("integrable"));
+        assert!(!check_integrable(&sym).unwrap());
     }
 
     #[test]
@@ -242,13 +239,13 @@ mod tests {
         let mut sym = Symbol::zero();
         sym.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
         sym.add_term(Word(vec![normalized("y"), normalized("x")]), r(1, 1));
-        assert!(check_integrable(&sym).expect("integrable"));
+        assert!(check_integrable(&sym).unwrap());
     }
 
     #[test]
     fn integrable_log_log() {
         let expr = normalized("(* (log x) (log y))");
-        let sym = symbol(&expr).expect("symbol");
-        assert!(check_integrable(&sym).expect("integrable"));
+        let sym = symbol(&expr).unwrap();
+        assert!(check_integrable(&sym).unwrap());
     }
 }

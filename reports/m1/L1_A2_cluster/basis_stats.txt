@@ -1,0 +1,12 @@
+w=1 ncols=2, dim=2, rank=0, rows_attempted=0, rows_inserted=0, samples_used=0, envs_total=0, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=0, avg_row_nnz=0 status=ok
+w=2 ncols=4, dim=3, rank=1, rows_attempted=5, rows_inserted=1, samples_used=5, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=4, avg_row_nnz=4 status=ok
+w=3 ncols=8, dim=2, rank=6, rows_attempted=35, rows_inserted=6, samples_used=35, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=4 ncols=16, dim=2, rank=14, rows_attempted=110, rows_inserted=14, samples_used=110, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=5 ncols=32, dim=2, rank=30, rows_attempted=300, rows_inserted=30, samples_used=300, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=6 ncols=64, dim=2, rank=62, rows_attempted=760, rows_inserted=62, samples_used=760, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=7 ncols=128, dim=2, rank=126, rows_attempted=1840, rows_inserted=126, samples_used=1840, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=8 ncols=256, dim=2, rank=254, rows_attempted=4320, rows_inserted=254, samples_used=4320, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=9 ncols=512, dim=2, rank=510, rows_attempted=9920, rows_inserted=510, samples_used=9920, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=10 ncols=1024, dim=2, rank=1022, rows_attempted=22400, rows_inserted=1022, samples_used=22400, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=11 ncols=2048, dim=2, rank=2046, rows_attempted=49920, rows_inserted=2046, samples_used=49920, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=12 ncols=4096, dim=2, rank=4094, rows_attempted=110080, rows_inserted=4094, samples_used=110080, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok

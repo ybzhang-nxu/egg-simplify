@@ -1,11 +1,12 @@
-﻿# mpl-simplifier (v0.1.4 node release)
+﻿# mpl-simplifier (v0.1.5 node release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
-expressions. It provides a canonical normal form (v0.1.1 baseline), a minimal
-symbol layer for log/li2 with general weight-n integrability and a space engine,
-an egg-based rewrite engine with a conservative symbol guard, plus an optional
-symbol-aware extractor backed by deterministic fingerprints.
+expressions. It provides a canonical normal form (v0.1.1 baseline), a symbol
+layer for log/li2 with shuffle algebra for products/powers, general weight-n
+integrability and a space engine, an egg-based rewrite engine with a
+conservative symbol guard, plus an optional symbol-aware extractor backed by
+deterministic fingerprints and fuel-limited symbolization.
 
 This project intentionally avoids branch-sensitive functional identities and
 full MPL/GPL reconstruction. It does not implement log/li2 identities or
@@ -18,7 +19,7 @@ Dependency DAG (no cycles, per AGENTS.md):
 | Crate | Purpose | Key Modules / Public API | Depends On |
 | --- | --- | --- | --- |
 | `mpl-ir` | AST, parser, normalization, canonical printing | `Expr`, `parse_sexpr`, `Expr::normalize`, `Expr::to_canonical_string`, `ParseError` (`crates/ir/src/lib.rs`) | (none) |
-| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `symbol`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
+| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `ShuffleFuel`, `symbol`, `symbol_with_fuel`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `Coproduct`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
 | `mpl-rewrite` | egg language/rules/lowering/lifting + simplifier | `simplify_algebra`, `RewriteConfig`, `RewriteMode`, `RewriteError`, `lower_expr`, `lift_expr` (`crates/rewrite/src/*.rs`) | `mpl-ir`, `egg` |
 | `mpl-rewrite-symbol` | Symbol-aware rewrite pipeline + fingerprinting + deterministic extractor | `simplify_symbol_aware`, `SymbolContext`, `FingerprintConfig`, `PenaltyConfig` (`crates/rewrite-symbol/src/lib.rs`) | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
 | `mpl-verify` | Exact rational eval + sample equivalence | `eval_rational`, `equiv_on_samples`, `EvalError` (`crates/verify/src/lib.rs`) | `mpl-ir` |
@@ -60,14 +61,18 @@ See `docs/canonical_form.md` for the formal spec.
 Supported symbol rules (no branch-sensitive identities):
 - `S(log l) = [l]` for algebraic letter `l`.
 - `S(li2 f) = -(1-f) otimes f` (letter `f` must be algebraic).
-- `S(log a * log b) = a otimes b + b otimes a` (algebraic letters only).
-- `S((log l)^2) = 2 * [l, l]`.
+- Products use the shuffle algebra: `S(f * g) = shuffle(S(f), S(g))`.
+- Powers use shuffle powers: `S(f^n) = shuffle_pow(S(f), n)` for `n > 0`,
+  and `S(1) = 0` for `n = 0`.
+- Non-rational prefactors on non-algebraic factors return `SymbolError::NotImplemented`.
 Here `otimes` denotes word concatenation (tensor product) in the symbol.
 
 Integrability:
 - `check_integrable` supports weight-2 symbols (legacy entry point).
 - For weights greater than 2, `check_integrable` returns `SymbolError::NotImplemented`.
 - `mpl_symbol::space::check_integrable_n` supports general weight-n symbols.
+- The CLI guard uses `check_integrable` for weight <= 2 and `check_integrable_n`
+  for weight > 2; errors skip the guard.
 - Deterministic sampling uses a fixed rational table and ordered variable
   environments; singular points are skipped (insufficient samples return
   `SymbolError::InsufficientSamples`).
@@ -156,8 +161,9 @@ Subcommands:
 - `version`
 
 Notes:
-- The symbol guard uses `check_integrable` (weight-2). If symbolization or
-  integrability returns an error, the guard is skipped.
+- The symbol guard uses `check_integrable` for weight <= 2 and
+  `check_integrable_n` for weight > 2. If symbolization or integrability
+  returns an error, the guard is skipped.
 - `--symbol-aware` enables the symbol-aware extractor; `--symbol-fuel` defaults
   to 100 and the symbol-aware flags require `--symbol-aware`.
 - General weight-n integrability and basis building are library-only APIs.
@@ -195,6 +201,8 @@ Tests:
 - `crates/rewrite/src/lib.rs` tests: lower/lift roundtrip and aggressive factoring.
 - `crates/symbol/src/space/tests_weight_n.rs`: general weight-n tests with ignored
   stress cases (run with `--ignored`).
+- `crates/symbol/tests/stress.rs`: ignored stress tests for shuffle/fuel and
+  higher-weight integrability.
 
 Toy oracle:
 - For alphabet `{x, y}` with no constraints, the integrable subspace dimension at
@@ -228,17 +236,16 @@ Manual tools:
 - `cargo run -p mpl-rewrite-symbol --bin symbol_param_scan` writes
   `reports/phase2_symbol_scan.md` and `reports/phase2_symbol_scan.csv`.
 
-## v0.1.4 Release Notes
-- Added general weight-n integrability via `check_integrable_n`.
-- Added the space engine: `Alphabet`, `WordConstraints`, `Basis`,
-  `build_integrable_basis`, and `reduce_to_basis`.
-- Standardized basis diagnostics via `BasisStats` and one-line formatting.
-- Added `mpl-rewrite-symbol` with deterministic fingerprinting, cache, and
-  symbol-aware extractor tie-breaking.
-- Added `--symbol-aware` CLI pipeline with symbol fuel/penalty knobs.
-- Added a deterministic symbol parameter scan tool and report outputs.
-- Improved scalability with streaming REF/dictionary elimination plus
-  back-substitution (no global RREF cleanup).
+## v0.1.5 Release Notes
+- Added shuffle algebra for symbol products/powers, enabling higher-weight
+  symbols for products like log-powers and li2/log mixes.
+- Added fuel-limited symbolization (`ShuffleFuel`, `symbol_with_fuel`) and
+  deterministic early aborts on fuel exhaustion.
+- Added a deconcatenation coproduct carrier (`Coproduct`) for Hopf workflows.
+- CLI guard now uses `check_integrable_n` for weight > 2 (weight-2 remains
+  `check_integrable`), preserving deterministic downgrade on errors.
+- Added ignored stress tests for shuffle fuel boundaries and weight-10
+  integrability, plus a weight-10 toy-oracle basis check.
 - Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release
   label for documentation and planning purposes.
 

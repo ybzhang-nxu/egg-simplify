@@ -1,0 +1,3460 @@
+﻿diff --git a/Cargo.lock b/Cargo.lock
+index 9324643..ac3e271 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -288,8 +288,8 @@ checksum = "96beaf9d35dbc4686bc86a4ecb851fd6a406f0bf32d9f646b1225a5c5cf5b5d7"
+ dependencies = [
+  "env_logger",
+  "fxhash",
+- "hashbrown",
+- "indexmap",
++ "hashbrown 0.12.3",
++ "indexmap 1.9.3",
+  "instant",
+  "log",
+  "smallvec",
+@@ -313,6 +313,12 @@ dependencies = [
+  "log",
+ ]
+ 
++[[package]]
++name = "equivalent"
++version = "1.0.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
++
+ [[package]]
+ name = "float-cmp"
+ version = "0.10.0"
+@@ -362,6 +368,12 @@ dependencies = [
+  "ahash",
+ ]
+ 
++[[package]]
++name = "hashbrown"
++version = "0.16.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
++
+ [[package]]
+ name = "heck"
+ version = "0.5.0"
+@@ -381,7 +393,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
+ dependencies = [
+  "autocfg",
+- "hashbrown",
++ "hashbrown 0.12.3",
++]
++
++[[package]]
++name = "indexmap"
++version = "2.12.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0ad4bb2b565bca0645f4d68c5c9af97fba094e9791da685bf83cb5f3ce74acf2"
++dependencies = [
++ "equivalent",
++ "hashbrown 0.16.1",
+ ]
+ 
+ [[package]]
+@@ -453,6 +475,17 @@ version = "2.7.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+ 
++[[package]]
++name = "mpl-experiments"
++version = "0.1.1"
++dependencies = [
++ "mpl-ir",
++ "mpl-symbol",
++ "num-traits",
++ "serde",
++ "toml",
++]
++
+ [[package]]
+ name = "mpl-ir"
+ version = "0.1.1"
+@@ -769,6 +802,15 @@ dependencies = [
+  "zmij",
+ ]
+ 
++[[package]]
++name = "serde_spanned"
++version = "0.6.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
++dependencies = [
++ "serde",
++]
++
+ [[package]]
+ name = "smallvec"
+ version = "1.15.1"
+@@ -788,7 +830,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "32bf088d1d7df2b2b6711b06da3471bc86677383c57b27251e18c56df8deac14"
+ dependencies = [
+  "ahash",
+- "hashbrown",
++ "hashbrown 0.12.3",
+ ]
+ 
+ [[package]]
+@@ -844,6 +886,47 @@ dependencies = [
+  "serde_json",
+ ]
+ 
++[[package]]
++name = "toml"
++version = "0.8.23"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
++dependencies = [
++ "serde",
++ "serde_spanned",
++ "toml_datetime",
++ "toml_edit",
++]
++
++[[package]]
++name = "toml_datetime"
++version = "0.6.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c"
++dependencies = [
++ "serde",
++]
++
++[[package]]
++name = "toml_edit"
++version = "0.22.27"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
++dependencies = [
++ "indexmap 2.12.1",
++ "serde",
++ "serde_spanned",
++ "toml_datetime",
++ "toml_write",
++ "winnow",
++]
++
++[[package]]
++name = "toml_write"
++version = "0.1.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
++
+ [[package]]
+ name = "unicode-ident"
+ version = "1.0.22"
+@@ -966,6 +1049,15 @@ dependencies = [
+  "windows-link",
+ ]
+ 
++[[package]]
++name = "winnow"
++version = "0.7.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
++dependencies = [
++ "memchr",
++]
++
+ [[package]]
+ name = "zerocopy"
+ version = "0.8.31"
+diff --git a/Cargo.toml b/Cargo.toml
+index 47bc699..1594a57 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,7 @@
+ [workspace]
+ members = [
+     "crates/cli",
++    "crates/experiments",
+     "crates/ir",
+     "crates/rewrite",
+     "crates/rewrite-symbol",
+diff --git a/README.md b/README.md
+index 0e9b212..516d8b5 100644
+--- a/README.md
++++ b/README.md
+@@ -1,11 +1,12 @@
+-锘? mpl-simplifier (v0.1.4 node release)
++锘? mpl-simplifier (v0.1.5 node release)
+ 
+ ## Overview
+ mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
+-expressions. It provides a canonical normal form (v0.1.1 baseline), a minimal
+-symbol layer for log/li2 with general weight-n integrability and a space engine,
+-an egg-based rewrite engine with a conservative symbol guard, plus an optional
+-symbol-aware extractor backed by deterministic fingerprints.
++expressions. It provides a canonical normal form (v0.1.1 baseline), a symbol
++layer for log/li2 with shuffle algebra for products/powers, general weight-n
++integrability and a space engine, an egg-based rewrite engine with a
++conservative symbol guard, plus an optional symbol-aware extractor backed by
++deterministic fingerprints and fuel-limited symbolization.
+ 
+ This project intentionally avoids branch-sensitive functional identities and
+ full MPL/GPL reconstruction. It does not implement log/li2 identities or
+@@ -18,7 +19,7 @@ Dependency DAG (no cycles, per AGENTS.md):
+ | Crate | Purpose | Key Modules / Public API | Depends On |
+ | --- | --- | --- | --- |
+ | `mpl-ir` | AST, parser, normalization, canonical printing | `Expr`, `parse_sexpr`, `Expr::normalize`, `Expr::to_canonical_string`, `ParseError` (`crates/ir/src/lib.rs`) | (none) |
+-| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `symbol`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
++| `mpl-symbol` | Symbol tensor, symbolization rules, integrability checks + space engine | `Symbol`, `Word`, `Coeff`, `ShuffleFuel`, `symbol`, `symbol_with_fuel`, `check_integrable`, `space::{check_integrable_n, Alphabet, WordConstraints, Basis, BasisStats, build_integrable_basis, reduce_to_basis}`, `Coproduct`, `SymbolError` (`crates/symbol/src/*.rs`) | `mpl-ir` |
+ | `mpl-rewrite` | egg language/rules/lowering/lifting + simplifier | `simplify_algebra`, `RewriteConfig`, `RewriteMode`, `RewriteError`, `lower_expr`, `lift_expr` (`crates/rewrite/src/*.rs`) | `mpl-ir`, `egg` |
+ | `mpl-rewrite-symbol` | Symbol-aware rewrite pipeline + fingerprinting + deterministic extractor | `simplify_symbol_aware`, `SymbolContext`, `FingerprintConfig`, `PenaltyConfig` (`crates/rewrite-symbol/src/lib.rs`) | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
+ | `mpl-verify` | Exact rational eval + sample equivalence | `eval_rational`, `equiv_on_samples`, `EvalError` (`crates/verify/src/lib.rs`) | `mpl-ir` |
+@@ -60,14 +61,18 @@ See `docs/canonical_form.md` for the formal spec.
+ Supported symbol rules (no branch-sensitive identities):
+ - `S(log l) = [l]` for algebraic letter `l`.
+ - `S(li2 f) = -(1-f) otimes f` (letter `f` must be algebraic).
+-- `S(log a * log b) = a otimes b + b otimes a` (algebraic letters only).
+-- `S((log l)^2) = 2 * [l, l]`.
++- Products use the shuffle algebra: `S(f * g) = shuffle(S(f), S(g))`.
++- Powers use shuffle powers: `S(f^n) = shuffle_pow(S(f), n)` for `n > 0`,
++  and `S(1) = 0` for `n = 0`.
++- Non-rational prefactors on non-algebraic factors return `SymbolError::NotImplemented`.
+ Here `otimes` denotes word concatenation (tensor product) in the symbol.
+ 
+ Integrability:
+ - `check_integrable` supports weight-2 symbols (legacy entry point).
+ - For weights greater than 2, `check_integrable` returns `SymbolError::NotImplemented`.
+ - `mpl_symbol::space::check_integrable_n` supports general weight-n symbols.
++- The CLI guard uses `check_integrable` for weight <= 2 and `check_integrable_n`
++  for weight > 2; errors skip the guard.
+ - Deterministic sampling uses a fixed rational table and ordered variable
+   environments; singular points are skipped (insufficient samples return
+   `SymbolError::InsufficientSamples`).
+@@ -156,8 +161,9 @@ Subcommands:
+ - `version`
+ 
+ Notes:
+-- The symbol guard uses `check_integrable` (weight-2). If symbolization or
+-  integrability returns an error, the guard is skipped.
++- The symbol guard uses `check_integrable` for weight <= 2 and
++  `check_integrable_n` for weight > 2. If symbolization or integrability
++  returns an error, the guard is skipped.
+ - `--symbol-aware` enables the symbol-aware extractor; `--symbol-fuel` defaults
+   to 100 and the symbol-aware flags require `--symbol-aware`.
+ - General weight-n integrability and basis building are library-only APIs.
+@@ -195,6 +201,8 @@ Tests:
+ - `crates/rewrite/src/lib.rs` tests: lower/lift roundtrip and aggressive factoring.
+ - `crates/symbol/src/space/tests_weight_n.rs`: general weight-n tests with ignored
+   stress cases (run with `--ignored`).
++- `crates/symbol/tests/stress.rs`: ignored stress tests for shuffle/fuel and
++  higher-weight integrability.
+ 
+ Toy oracle:
+ - For alphabet `{x, y}` with no constraints, the integrable subspace dimension at
+@@ -228,17 +236,16 @@ Manual tools:
+ - `cargo run -p mpl-rewrite-symbol --bin symbol_param_scan` writes
+   `reports/phase2_symbol_scan.md` and `reports/phase2_symbol_scan.csv`.
+ 
+-## v0.1.4 Release Notes
+-- Added general weight-n integrability via `check_integrable_n`.
+-- Added the space engine: `Alphabet`, `WordConstraints`, `Basis`,
+-  `build_integrable_basis`, and `reduce_to_basis`.
+-- Standardized basis diagnostics via `BasisStats` and one-line formatting.
+-- Added `mpl-rewrite-symbol` with deterministic fingerprinting, cache, and
+-  symbol-aware extractor tie-breaking.
+-- Added `--symbol-aware` CLI pipeline with symbol fuel/penalty knobs.
+-- Added a deterministic symbol parameter scan tool and report outputs.
+-- Improved scalability with streaming REF/dictionary elimination plus
+-  back-substitution (no global RREF cleanup).
++## v0.1.5 Release Notes
++- Added shuffle algebra for symbol products/powers, enabling higher-weight
++  symbols for products like log-powers and li2/log mixes.
++- Added fuel-limited symbolization (`ShuffleFuel`, `symbol_with_fuel`) and
++  deterministic early aborts on fuel exhaustion.
++- Added a deconcatenation coproduct carrier (`Coproduct`) for Hopf workflows.
++- CLI guard now uses `check_integrable_n` for weight > 2 (weight-2 remains
++  `check_integrable`), preserving deterministic downgrade on errors.
++- Added ignored stress tests for shuffle fuel boundaries and weight-10
++  integrability, plus a weight-10 toy-oracle basis check.
+ - Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release
+   label for documentation and planning purposes.
+ 
+diff --git a/crates/cli/src/pipeline.rs b/crates/cli/src/pipeline.rs
+index 50ec197..6dd3231 100644
+--- a/crates/cli/src/pipeline.rs
++++ b/crates/cli/src/pipeline.rs
+@@ -6,7 +6,7 @@ use mpl_rewrite_symbol::{
+     simplify_symbol_aware, FingerprintBudget, FingerprintCache, FingerprintConfig, GuardConfig,
+     PenaltyConfig, SymbolContext, SymbolRewriteConfig,
+ };
+-use mpl_symbol::space::WordConstraints;
++use mpl_symbol::space::{check_integrable_n, WordConstraints};
+ use mpl_symbol::{check_integrable, symbol};
+ 
+ pub struct SimplifyOptions {
+@@ -86,7 +86,17 @@ pub fn simplify_expr(input: &str, opts: &SimplifyOptions) -> Result<Expr, String
+             if sb != sc {
+                 return Ok(baseline);
+             }
+-            match check_integrable(&sc) {
++            let max_weight = sc
++                .terms()
++                .map(|(word, _coeff)| word.letters().len())
++                .max()
++                .unwrap_or(0);
++            let integrable = if max_weight <= 2 {
++                check_integrable(&sc)
++            } else {
++                check_integrable_n(&sc)
++            };
++            match integrable {
+                 Ok(true) => Ok(candidate),
+                 Ok(false) => Ok(baseline),
+                 Err(_) => Ok(candidate),
+diff --git a/crates/rewrite-symbol/src/fingerprint.rs b/crates/rewrite-symbol/src/fingerprint.rs
+index b4dc6fb..4cb9765 100644
+--- a/crates/rewrite-symbol/src/fingerprint.rs
++++ b/crates/rewrite-symbol/src/fingerprint.rs
+@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
+ 
+ use mpl_ir::Expr;
+ use mpl_symbol::space::{Alphabet, Basis, WordConstraints};
+-use mpl_symbol::{Symbol, SymbolError, Word};
++use mpl_symbol::{ShuffleFuel, Symbol, SymbolError, Word};
+ use num_rational::Rational64;
+ use num_traits::Zero;
+ 
+@@ -83,7 +83,8 @@ fn fingerprint_expr_uncached(
+         .time_limit_ms
+         .map(|ms| Instant::now() + Duration::from_millis(ms));
+ 
+-    let symbol = match symbol_cached(expr, expr_key, cache) {
++    let mut symbol_fuel = ShuffleFuel::new(cfg.budget.fuel);
++    let symbol = match symbol_cached(expr, expr_key, cache, &mut symbol_fuel) {
+         Ok(symbol) => symbol,
+         Err(err) => {
+             return Ok(Fingerprint::Unknown {
+@@ -163,6 +164,7 @@ fn symbol_cached(
+     expr: &Expr,
+     expr_key: &ExprKey,
+     cache: &FingerprintCache,
++    fuel: &mut ShuffleFuel,
+ ) -> Result<Symbol, SymbolError> {
+     let read_guard = match cache.symbol.read() {
+         Ok(guard) => guard,
+@@ -173,7 +175,7 @@ fn symbol_cached(
+     }
+     drop(read_guard);
+ 
+-    let symbol = mpl_symbol::symbol(expr)?;
++    let symbol = mpl_symbol::symbol_with_fuel(expr, fuel)?;
+     let mut write_guard = match cache.symbol.write() {
+         Ok(guard) => guard,
+         Err(poison) => poison.into_inner(),
+@@ -409,6 +411,7 @@ fn map_symbol_error(err: SymbolError) -> UnknownReason {
+         SymbolError::NotImplemented(_) => UnknownReason::SymbolNotImplemented,
+         SymbolError::Eval(_) => UnknownReason::SymbolEval,
+         SymbolError::InsufficientSamples => UnknownReason::InsufficientSamples,
++        SymbolError::FuelExhausted => UnknownReason::BudgetExhausted,
+     }
+ }
+ 
+diff --git a/crates/symbol/src/error.rs b/crates/symbol/src/error.rs
+index fea14ab..70511e4 100644
+--- a/crates/symbol/src/error.rs
++++ b/crates/symbol/src/error.rs
+@@ -8,6 +8,8 @@ pub enum SymbolError {
+     Eval(#[from] EvalError),
+     #[error("insufficient valid sample points for integrability check")]
+     InsufficientSamples,
++    #[error("fuel exhausted during shuffle expansion")]
++    FuelExhausted,
+ }
+ 
+ #[derive(Debug, Error)]
+diff --git a/crates/symbol/src/integrability.rs b/crates/symbol/src/integrability.rs
+index 90243c4..726a9be 100644
+--- a/crates/symbol/src/integrability.rs
++++ b/crates/symbol/src/integrability.rs
+@@ -5,7 +5,7 @@ use num_traits::Zero;
+ 
+ use crate::error::SymbolError;
+ use crate::integrability_utils::{build_envs, collect_vars, dlog};
+-use crate::tensor::Symbol;
++use crate::Symbol;
+ 
+ pub fn check_integrable(sym: &Symbol) -> Result<bool, SymbolError> {
+     let mut has_weight2 = false;
+diff --git a/crates/symbol/src/lib.rs b/crates/symbol/src/lib.rs
+index 3183111..304505d 100644
+--- a/crates/symbol/src/lib.rs
++++ b/crates/symbol/src/lib.rs
+@@ -1,13 +1,17 @@
+ mod calculus;
+ mod error;
+ mod eval;
++mod hopf;
+ mod integrability;
+ mod integrability_utils;
+ mod rules;
+ pub mod space;
+ mod tensor;
++mod word;
+ 
+ pub use error::{EvalError, SymbolError};
++pub use hopf::Coproduct;
+ pub use integrability::check_integrable;
+-pub use rules::symbol;
+-pub use tensor::{Coeff, Symbol, Word};
++pub use rules::{symbol, symbol_with_fuel};
++pub use tensor::{Coeff, ShuffleFuel, Symbol};
++pub use word::Word;
+diff --git a/crates/symbol/src/rules.rs b/crates/symbol/src/rules.rs
+index 1760b0d..0cdbf2c 100644
+--- a/crates/symbol/src/rules.rs
++++ b/crates/symbol/src/rules.rs
+@@ -3,27 +3,36 @@ use num_rational::Rational64;
+ use num_traits::{One, Zero};
+ 
+ use crate::error::SymbolError;
+-use crate::tensor::{Symbol, Word};
++use crate::{ShuffleFuel, Symbol, Word};
+ 
+ pub fn symbol(expr: &Expr) -> Result<Symbol, SymbolError> {
++    let mut fuel = ShuffleFuel::unlimited();
++    symbol_with_fuel(expr, &mut fuel)
++}
++
++pub fn symbol_with_fuel(expr: &Expr, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
++    symbol_inner(expr, fuel)
++}
++
++fn symbol_inner(expr: &Expr, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
+     match expr {
+         Expr::Log(inner) => symbol_log(inner),
+         Expr::Li2(inner) => symbol_li2(inner),
+         Expr::Add(children) => {
+             let mut out = Symbol::zero();
+             for child in children {
+-                let child_symbol = symbol(child)?;
++                let child_symbol = symbol_inner(child, fuel)?;
+                 out.add_assign(child_symbol);
+             }
+             Ok(out)
+         }
+-        Expr::Mul(children) => symbol_mul(children),
++        Expr::Mul(children) => symbol_mul(children, fuel),
+         Expr::Neg(inner) => {
+-            let mut inner_symbol = symbol(inner)?;
++            let mut inner_symbol = symbol_inner(inner, fuel)?;
+             inner_symbol.scale(Rational64::from_integer(-1));
+             Ok(inner_symbol)
+         }
+-        Expr::Pow(base, exp) => symbol_pow(base, *exp),
++        Expr::Pow(base, exp) => symbol_pow(base, *exp, fuel),
+         _ => {
+             if is_algebraic(expr) {
+                 Ok(Symbol::zero())
+@@ -66,9 +75,10 @@ fn symbol_li2(inner: &Expr) -> Result<Symbol, SymbolError> {
+     Ok(out)
+ }
+ 
+-fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
++fn symbol_mul(children: &[Expr], fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
+     let mut coeff = Rational64::one();
+     let mut factors = Vec::new();
++    let mut has_non_rational_prefactor = false;
+ 
+     for child in children {
+         match child {
+@@ -77,9 +87,26 @@ fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
+             }
+             Expr::Neg(inner) => {
+                 coeff *= Rational64::from_integer(-1);
+-                factors.push((**inner).clone());
++                match inner.as_ref() {
++                    Expr::Rational(value) => {
++                        coeff *= *value;
++                    }
++                    other => {
++                        if is_algebraic(other) {
++                            has_non_rational_prefactor = true;
++                        } else {
++                            factors.push(other.clone());
++                        }
++                    }
++                }
++            }
++            other => {
++                if is_algebraic(other) {
++                    has_non_rational_prefactor = true;
++                } else {
++                    factors.push(other.clone());
++                }
+             }
+-            other => factors.push(other.clone()),
+         }
+     }
+ 
+@@ -91,71 +118,41 @@ fn symbol_mul(children: &[Expr]) -> Result<Symbol, SymbolError> {
+         return Ok(Symbol::zero());
+     }
+ 
+-    if factors.len() == 1 {
+-        let mut inner = symbol(&factors[0])?;
+-        inner.scale(coeff);
+-        return Ok(inner);
+-    }
+-
+-    if factors.len() == 2 {
+-        if let (Expr::Log(left), Expr::Log(right)) = (&factors[0], &factors[1]) {
+-            let left_letter = left.normalize();
+-            let right_letter = right.normalize();
+-            if !is_algebraic(&left_letter) || !is_algebraic(&right_letter) {
+-                return Err(SymbolError::NotImplemented(
+-                    "log letter must be algebraic".to_string(),
+-                ));
+-            }
+-
+-            let mut out = Symbol::zero();
+-            out.add_term(Word(vec![left_letter.clone(), right_letter.clone()]), coeff);
+-            out.add_term(Word(vec![right_letter, left_letter]), coeff);
+-            return Ok(out);
+-        }
++    if has_non_rational_prefactor {
++        return Err(SymbolError::NotImplemented(
++            "symbol for non-rational prefactor".to_string(),
++        ));
+     }
+ 
+-    if factors.iter().all(is_algebraic) {
+-        Ok(Symbol::zero())
+-    } else {
+-        Err(SymbolError::NotImplemented(
+-            "symbol for product".to_string(),
+-        ))
++    let mut iter = factors.into_iter();
++    let first = match iter.next() {
++        Some(factor) => factor,
++        None => return Ok(Symbol::zero()),
++    };
++    let mut out = symbol_inner(&first, fuel)?;
++    for factor in iter {
++        let sym = symbol_inner(&factor, fuel)?;
++        out = out.shuffle_mul(&sym, fuel)?;
+     }
++    out.scale(coeff);
++    Ok(out)
+ }
+ 
+-fn symbol_pow(base: &Expr, exp: i32) -> Result<Symbol, SymbolError> {
+-    match base {
+-        Expr::Log(inner) => {
+-            if exp == 2 {
+-                let letter = inner.normalize();
+-                if !is_algebraic(&letter) {
+-                    return Err(SymbolError::NotImplemented(
+-                        "log letter must be algebraic".to_string(),
+-                    ));
+-                }
+-                let mut out = Symbol::zero();
+-                out.add_term(
+-                    Word(vec![letter.clone(), letter]),
+-                    Rational64::from_integer(2),
+-                );
+-                Ok(out)
+-            } else {
+-                Err(SymbolError::NotImplemented(format!(
+-                    "symbol for (^ (log ...) {exp})"
+-                )))
+-            }
+-        }
+-        _ => {
+-            if is_algebraic(base) {
+-                Ok(Symbol::zero())
+-            } else {
+-                Err(SymbolError::NotImplemented(format!(
+-                    "symbol for (^ {} {exp})",
+-                    base.to_canonical_string()
+-                )))
+-            }
+-        }
++fn symbol_pow(base: &Expr, exp: i32, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
++    if exp == 0 {
++        return Ok(Symbol::zero());
++    }
++    if exp < 0 {
++        return Err(SymbolError::NotImplemented(format!(
++            "symbol for (^ {} {exp})",
++            base.to_canonical_string()
++        )));
++    }
++    if is_algebraic(base) {
++        return Ok(Symbol::zero());
+     }
++    let base_sym = symbol_inner(base, fuel)?;
++    base_sym.shuffle_pow(exp as u32, fuel)
+ }
+ 
+ fn is_algebraic(expr: &Expr) -> bool {
+@@ -180,13 +177,13 @@ mod tests {
+     }
+ 
+     fn normalized(input: &str) -> Expr {
+-        parse_sexpr(input).expect("parse").normalize()
++        parse_sexpr(input).unwrap().normalize()
+     }
+ 
+     #[test]
+     fn symbol_log_basic() {
+         let expr = normalized("(log x)");
+-        let sym = symbol(&expr).expect("symbol");
++        let sym = symbol(&expr).unwrap();
+         let mut expected = Symbol::zero();
+         expected.add_term(Word(vec![normalized("x")]), r(1, 1));
+         assert_eq!(sym, expected);
+@@ -195,7 +192,7 @@ mod tests {
+     #[test]
+     fn symbol_li2_basic() {
+         let expr = normalized("(li2 x)");
+-        let sym = symbol(&expr).expect("symbol");
++        let sym = symbol(&expr).unwrap();
+         let mut expected = Symbol::zero();
+         expected.add_term(
+             Word(vec![normalized("(+ 1 (* -1 x))"), normalized("x")]),
+@@ -207,7 +204,7 @@ mod tests {
+     #[test]
+     fn symbol_log_log_basic() {
+         let expr = normalized("(* (log x) (log y))");
+-        let sym = symbol(&expr).expect("symbol");
++        let sym = symbol(&expr).unwrap();
+         let mut expected = Symbol::zero();
+         expected.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
+         expected.add_term(Word(vec![normalized("y"), normalized("x")]), r(1, 1));
+@@ -217,7 +214,7 @@ mod tests {
+     #[test]
+     fn symbol_log_log_same() {
+         let expr = normalized("(* (log x) (log x))");
+-        let sym = symbol(&expr).expect("symbol");
++        let sym = symbol(&expr).unwrap();
+         let mut expected = Symbol::zero();
+         expected.add_term(Word(vec![normalized("x"), normalized("x")]), r(2, 1));
+         assert_eq!(sym, expected);
+@@ -226,15 +223,15 @@ mod tests {
+     #[test]
+     fn integrable_li2() {
+         let expr = normalized("(li2 x)");
+-        let sym = symbol(&expr).expect("symbol");
+-        assert!(check_integrable(&sym).expect("integrable"));
++        let sym = symbol(&expr).unwrap();
++        assert!(check_integrable(&sym).unwrap());
+     }
+ 
+     #[test]
+     fn integrable_false_for_single_word() {
+         let mut sym = Symbol::zero();
+         sym.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
+-        assert!(!check_integrable(&sym).expect("integrable"));
++        assert!(!check_integrable(&sym).unwrap());
+     }
+ 
+     #[test]
+@@ -242,13 +239,13 @@ mod tests {
+         let mut sym = Symbol::zero();
+         sym.add_term(Word(vec![normalized("x"), normalized("y")]), r(1, 1));
+         sym.add_term(Word(vec![normalized("y"), normalized("x")]), r(1, 1));
+-        assert!(check_integrable(&sym).expect("integrable"));
++        assert!(check_integrable(&sym).unwrap());
+     }
+ 
+     #[test]
+     fn integrable_log_log() {
+         let expr = normalized("(* (log x) (log y))");
+-        let sym = symbol(&expr).expect("symbol");
+-        assert!(check_integrable(&sym).expect("integrable"));
++        let sym = symbol(&expr).unwrap();
++        assert!(check_integrable(&sym).unwrap());
+     }
+ }
+diff --git a/crates/symbol/src/space/mod.rs b/crates/symbol/src/space/mod.rs
+index c41fa65..cdcdd8f 100644
+--- a/crates/symbol/src/space/mod.rs
++++ b/crates/symbol/src/space/mod.rs
+@@ -1,11 +1,12 @@
+ use std::collections::{BTreeMap, BTreeSet};
++use std::fmt;
+ 
+ use mpl_ir::Expr;
+ use num_traits::{One, Zero};
+ 
+ use crate::error::SymbolError;
+ use crate::integrability_utils::{build_envs, collect_vars, DlogCache};
+-use crate::tensor::{Coeff, Symbol, Word};
++use crate::{Coeff, Symbol, Word};
+ 
+ mod stats;
+ pub use stats::BasisStats;
+@@ -77,12 +78,39 @@ impl Basis {
+     }
+ }
+ 
++#[derive(Debug)]
++pub struct BasisBuildError {
++    pub err: SymbolError,
++    pub stats: BasisStats,
++}
++
++impl fmt::Display for BasisBuildError {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        write!(f, "{} (stats: {})", self.err, self.stats.one_line())
++    }
++}
++
++impl std::error::Error for BasisBuildError {}
++
+ pub fn build_integrable_basis(
+     alpha: &Alphabet,
+     constraints: &WordConstraints,
+     weight: usize,
+ ) -> Result<Basis, SymbolError> {
+-    validate_constraints(alpha, constraints)?;
++    build_integrable_basis_with_stats(alpha, constraints, weight).map_err(|err| err.err)
++}
++
++pub fn build_integrable_basis_with_stats(
++    alpha: &Alphabet,
++    constraints: &WordConstraints,
++    weight: usize,
++) -> Result<Basis, BasisBuildError> {
++    if let Err(err) = validate_constraints(alpha, constraints) {
++        return Err(BasisBuildError {
++            err,
++            stats: BasisStats::default(),
++        });
++    }
+ 
+     let words = enumerate_words(alpha.letters.len(), constraints, weight);
+     let ncols = words.len();
+@@ -119,7 +147,10 @@ pub fn build_integrable_basis(
+     }
+ 
+     let envs = build_envs(&vars);
+-    let cache = DlogCache::new(&letters, &vars, &envs)?;
++    let cache = DlogCache::new(&letters, &vars, &envs).map_err(|err| BasisBuildError {
++        err,
++        stats: stats.clone(),
++    })?;
+     let mut pivot_rows: BTreeMap<usize, SparseRow> = BTreeMap::new();
+     stats.envs_total = envs.len();
+ 
+@@ -171,7 +202,10 @@ pub fn build_integrable_basis(
+                     if valid < 2 {
+                         stats.constraints_insufficient_samples += 1;
+                         let _ = stats.constraints_insufficient_samples;
+-                        return Err(SymbolError::InsufficientSamples);
++                        return Err(BasisBuildError {
++                            err: SymbolError::InsufficientSamples,
++                            stats,
++                        });
+                     }
+                 }
+             }
+diff --git a/crates/symbol/src/space/tests_weight_n.rs b/crates/symbol/src/space/tests_weight_n.rs
+index b781283..f81799e 100644
+--- a/crates/symbol/src/space/tests_weight_n.rs
++++ b/crates/symbol/src/space/tests_weight_n.rs
+@@ -8,7 +8,7 @@ mod tests {
+     use num_traits::Zero;
+ 
+     use crate::error::SymbolError;
+-    use crate::tensor::{Coeff, Symbol, Word};
++    use crate::{Coeff, Symbol, Word};
+ 
+     use crate::space::{
+         build_integrable_basis, check_integrable_n, reduce_to_basis, Alphabet, WordConstraints,
+@@ -337,6 +337,7 @@ mod tests {
+ 
+         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
+         print_stats(basis.stats());
++        assert_eq!(basis.stats().dim, w + 1);
+         assert_eq!(basis.words.len(), 1usize << w);
+         assert_eq!(basis.vectors.len(), w + 1);
+ 
+diff --git a/crates/symbol/src/tensor.rs b/crates/symbol/src/tensor.rs
+index 8fe6bcd..4242b3d 100644
+--- a/crates/symbol/src/tensor.rs
++++ b/crates/symbol/src/tensor.rs
+@@ -1,52 +1,33 @@
+-use std::cmp::Ordering;
+ use std::collections::BTreeMap;
++use std::fmt;
+ 
+-use mpl_ir::Expr;
+ use num_rational::Rational64;
+ use num_traits::Zero;
+ 
+-pub type Coeff = Rational64;
++use crate::error::SymbolError;
++use crate::hopf::Coproduct;
++use crate::word::{shuffle_count_bounded, Word};
+ 
+-#[derive(Clone, Debug)]
+-pub struct Word(pub Vec<Expr>);
++pub type Coeff = Rational64;
+ 
+-impl Word {
+-    pub fn letters(&self) -> &[Expr] {
+-        &self.0
+-    }
++#[derive(Clone, Debug, Default)]
++pub struct ShuffleFuel {
++    remaining: Option<u64>,
+ }
+ 
+-impl PartialEq for Word {
+-    fn eq(&self, other: &Self) -> bool {
+-        self.cmp(other) == Ordering::Equal
++impl ShuffleFuel {
++    pub fn new(fuel: u64) -> Self {
++        Self {
++            remaining: Some(fuel),
++        }
+     }
+-}
+ 
+-impl Eq for Word {}
+-
+-impl PartialOrd for Word {
+-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+-        Some(self.cmp(other))
++    pub fn unlimited() -> Self {
++        Self { remaining: None }
+     }
+-}
+ 
+-impl Ord for Word {
+-    fn cmp(&self, other: &Self) -> Ordering {
+-        let mut left = self.0.iter().map(|expr| expr.to_canonical_string());
+-        let mut right = other.0.iter().map(|expr| expr.to_canonical_string());
+-        loop {
+-            match (left.next(), right.next()) {
+-                (Some(a), Some(b)) => {
+-                    let order = a.cmp(&b);
+-                    if order != Ordering::Equal {
+-                        return order;
+-                    }
+-                }
+-                (None, Some(_)) => return Ordering::Less,
+-                (Some(_), None) => return Ordering::Greater,
+-                (None, None) => return Ordering::Equal,
+-            }
+-        }
++    pub fn remaining(&self) -> Option<u64> {
++        self.remaining
+     }
+ }
+ 
+@@ -82,6 +63,58 @@ impl Symbol {
+         self.terms.iter()
+     }
+ 
++    pub fn shuffle_mul(
++        &self,
++        other: &Symbol,
++        fuel: &mut ShuffleFuel,
++    ) -> Result<Symbol, SymbolError> {
++        if self.is_zero() || other.is_zero() {
++            return Ok(Symbol::zero());
++        }
++
++        let mut out = Symbol::zero();
++        for (left_word, left_coeff) in &self.terms {
++            for (right_word, right_coeff) in &other.terms {
++                if left_coeff.is_zero() || right_coeff.is_zero() {
++                    continue;
++                }
++                reserve_shuffle_fuel(fuel, left_word.len(), right_word.len())?;
++                let coeff = *left_coeff * *right_coeff;
++                for shuffled in left_word.shuffle(right_word) {
++                    out.add_term(shuffled, coeff);
++                }
++            }
++        }
++        Ok(out)
++    }
++
++    pub fn shuffle_pow(&self, exp: u32, fuel: &mut ShuffleFuel) -> Result<Symbol, SymbolError> {
++        if exp == 0 || self.is_zero() {
++            return Ok(Symbol::zero());
++        }
++        if exp == 1 {
++            return Ok(self.clone());
++        }
++        let mut out = self.clone();
++        for _ in 1..exp {
++            out = out.shuffle_mul(self, fuel)?;
++        }
++        Ok(out)
++    }
++
++    pub fn deconcat(&self) -> Coproduct {
++        let mut out = Coproduct::zero();
++        for (word, coeff) in &self.terms {
++            if coeff.is_zero() {
++                continue;
++            }
++            for (left, right) in word.deconcat_splits() {
++                out.add_term(left, right, *coeff);
++            }
++        }
++        out
++    }
++
+     pub(crate) fn add_term(&mut self, word: Word, coeff: Coeff) {
+         if coeff.is_zero() {
+             return;
+@@ -118,3 +151,48 @@ impl Symbol {
+         }
+     }
+ }
++
++impl fmt::Display for Symbol {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        if self.is_zero() {
++            return write!(f, "0");
++        }
++        let mut first = true;
++        for (word, coeff) in &self.terms {
++            if !first {
++                write!(f, " + ")?;
++            }
++            first = false;
++            format_coeff(f, coeff)?;
++            write!(f, "*{}", word)?;
++        }
++        Ok(())
++    }
++}
++
++fn format_coeff(f: &mut fmt::Formatter<'_>, value: &Coeff) -> fmt::Result {
++    let numer = *value.numer();
++    let denom = *value.denom();
++    if denom == 1 {
++        write!(f, "{numer}")
++    } else {
++        write!(f, "{numer}/{denom}")
++    }
++}
++
++fn reserve_shuffle_fuel(
++    fuel: &mut ShuffleFuel,
++    left_len: usize,
++    right_len: usize,
++) -> Result<(), SymbolError> {
++    let remaining = match fuel.remaining {
++        Some(value) => value,
++        None => return Ok(()),
++    };
++    let count = match shuffle_count_bounded(left_len, right_len, remaining) {
++        Some(value) => value,
++        None => return Err(SymbolError::FuelExhausted),
++    };
++    fuel.remaining = Some(remaining - count);
++    Ok(())
++}
+diff --git a/crates/experiments/Cargo.toml b/crates/experiments/Cargo.toml
+new file mode 100644
+index 0000000..7ff9329
+--- /dev/null
++++ b/crates/experiments/Cargo.toml
+@@ -0,0 +1,11 @@
++[package]
++name = "mpl-experiments"
++version = "0.1.1"
++edition = "2021"
++
++[dependencies]
++mpl-ir = { path = "../ir" }
++mpl-symbol = { path = "../symbol" }
++num-traits = "0.2"
++serde = { version = "1", features = ["derive"] }
++toml = "0.8"
+diff --git a/crates/experiments/m1/L1_A2_cluster.toml b/crates/experiments/m1/L1_A2_cluster.toml
+new file mode 100644
+index 0000000..31f2cfb
+--- /dev/null
++++ b/crates/experiments/m1/L1_A2_cluster.toml
+@@ -0,0 +1,52 @@
++# L1: A2 cluster (pentagon) letter set + cluster adjacency as pair constraint
++# Source: standard A2 cluster example (x_{m+1} x_{m-1} = 1 + x_m), with explicit x3,x4,x5 in terms of x1,x2.
++
++[experiment]
++id = "L1_A2_cluster"
++title = "A2 cluster (pentagon) adjacency: only cyclic neighbors allowed"
++out_dir = "reports/m1/L1_A2_cluster"
++w_min = 1
++w_max = 12
++
++[alphabet]
++vars = ["x1", "x2"]
++
++[[alphabet.letters]]
++name = "x1"
++expr = "x1"
++
++[[alphabet.letters]]
++name = "x2"
++expr = "x2"
++
++# x3 = (1 + x2)/x1
++[[alphabet.letters]]
++name = "x3"
++expr = "(/ (+ 1 x2) x1)"
++
++# x4 = (1 + x1 + x2)/(x1 x2)
++[[alphabet.letters]]
++name = "x4"
++expr = "(/ (+ 1 x1 x2) x1 x2)"
++
++# x5 = (1 + x1)/x2
++[[alphabet.letters]]
++name = "x5"
++expr = "(/ (+ 1 x1) x2)"
++
++[constraints]
++# First-entry: choose the initial cluster {x1,x2}. (You can broaden this to all letters later.)
++first_entry = ["x1", "x2"]
++
++# Adjacency: allow only cyclic neighbors (both directions).
++adjacency_mode = "allow"
++adjacency_pairs = [
++  ["x1","x2"], ["x2","x1"],
++  ["x2","x3"], ["x3","x2"],
++  ["x3","x4"], ["x4","x3"],
++  ["x4","x5"], ["x5","x4"],
++  ["x5","x1"], ["x1","x5"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/crates/experiments/m1/L2_Dixon_Sprime_Steinmann.toml b/crates/experiments/m1/L2_Dixon_Sprime_Steinmann.toml
+new file mode 100644
+index 0000000..718bf82
+--- /dev/null
++++ b/crates/experiments/m1/L2_Dixon_Sprime_Steinmann.toml
+@@ -0,0 +1,60 @@
++# L2: Dixon lecture letter set S'={a,b,c,d,e,f} + Steinmann/ES forbidden adjacent pairs
++# Variables: u,v,w (cross ratios).
++# Letters:
++#   a=u/(vw), b=v/(wu), c=w/(uv), d=(1-u)/u, e=(1-v)/v, f=(1-w)/w
++
++[experiment]
++id = "L2_Dixon_Sprime_Steinmann"
++title = "Dixon S' 6-letter alphabet with first-entry {a,b,c} and forbidden adjacent pairs"
++out_dir = "reports/m1/L2_Dixon_Sprime_Steinmann"
++w_min = 1
++w_max = 8
++
++[alphabet]
++vars = ["u", "v", "w"]
++
++[[alphabet.letters]]
++name = "a"
++expr = "(/ u v w)"
++
++[[alphabet.letters]]
++name = "b"
++expr = "(/ v w u)"
++
++[[alphabet.letters]]
++name = "c"
++expr = "(/ w u v)"
++
++# d=(1-u)/u
++[[alphabet.letters]]
++name = "d"
++expr = "(/ (+ 1 (- u)) u)"
++
++# e=(1-v)/v
++[[alphabet.letters]]
++name = "e"
++expr = "(/ (+ 1 (- v)) v)"
++
++# f=(1-w)/w
++[[alphabet.letters]]
++name = "f"
++expr = "(/ (+ 1 (- w)) w)"
++
++[constraints]
++# First-entry: physical first-entry condition mapped to S' subset {a,b,c}.
++first_entry = ["a", "b", "c"]
++
++# Adjacency: forbid the listed directed pairs; allow all other pairs.
++adjacency_mode = "forbid"
++adjacency_pairs = [
++  ["d","e"], ["e","d"],
++  ["e","f"], ["f","e"],
++  ["f","d"], ["d","f"],
++
++  ["a","d"], ["d","a"],
++  ["b","e"], ["e","b"],
++  ["c","f"], ["f","c"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/crates/experiments/m1/L3_Hexagon_Su_rational_subset.toml b/crates/experiments/m1/L3_Hexagon_Su_rational_subset.toml
+new file mode 100644
+index 0000000..0ea3dbd
+--- /dev/null
++++ b/crates/experiments/m1/L3_Hexagon_Su_rational_subset.toml
+@@ -0,0 +1,47 @@
++# L3: Hexagon functions rational subset S_u^{rat} = {u,v,w,1-u,1-v,1-w}
++# Note: full hexagon alphabet includes y_u,y_v,y_w (square roots); this M1 pack keeps only the rational subset.
++
++[experiment]
++id = "L3_Hexagon_Su_rational_subset"
++title = "Hexagon rational subset: first-entry {u,v,w}, no adjacency constraint (baseline)"
++out_dir = "reports/m1/L3_Hexagon_Su_rational_subset"
++w_min = 1
++w_max = 6
++
++[alphabet]
++vars = ["u", "v", "w"]
++
++[[alphabet.letters]]
++name = "u"
++expr = "u"
++
++[[alphabet.letters]]
++name = "v"
++expr = "v"
++
++[[alphabet.letters]]
++name = "w"
++expr = "w"
++
++[[alphabet.letters]]
++name = "1-u"
++expr = "(+ 1 (- u))"
++
++[[alphabet.letters]]
++name = "1-v"
++expr = "(+ 1 (- v))"
++
++[[alphabet.letters]]
++name = "1-w"
++expr = "(+ 1 (- w))"
++
++[constraints]
++first_entry = ["u", "v", "w"]
++
++# No adjacency constraint:
++# - mode=allow with empty list would forbid everything, so we set mode=forbid with empty list (forbid nothing).
++adjacency_mode = "forbid"
++adjacency_pairs = []
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/crates/experiments/m1/M1_data.md b/crates/experiments/m1/M1_data.md
+new file mode 100644
+index 0000000..3116e47
+--- /dev/null
++++ b/crates/experiments/m1/M1_data.md
+@@ -0,0 +1,121 @@
++# M1 Data Pack: File-driven space-engine experiments (v0.1.5)
++
++This directory provides **4 experiment inputs** (TOML) that can be fed directly into an **M1 runner**. The goal is that, once you implement **M1 (minimal experimental loop)**, you can:
++
++* Read `*.toml` 鈫?construct **Alphabet + WordConstraints (first-entry + adjacency)** (Step A/B)
++* For each weight `w_min..=w_max`, build the integrable basis (Step D)
++* Automatically produce:
++
++  * `basis_stats.txt`
++  * `dim_vs_w.csv`
++  * `pairs.csv`
++  * `topology_metrics.csv`
++
++> Note: M1 includes only **first-entry + adjacency**. Steinmann/ES, triplets, genealogical, etc. are **M2+**.
++
++---
++
++## Directory Layout
++
++```
++experiments/m1/
++  M1_data.md
++  L1_A2_cluster.toml
++  L2_Dixon_Sprime_Steinmann.toml
++  L3_Hexagon_Su_rational_subset.toml
++  R1_rand_affine_seed20260107.toml
++```
++
++---
++
++## TOML Spec (aligned with the Experiment Spec Book: Step A/B/C/D)
++
++Each `*.toml` follows the same minimal schema:
++
++### `[experiment]` (general metadata / Step 0)
++
++* `id`: experiment/data-pack id (string)
++* `title`: description
++* `out_dir`: output directory (relative to repo root)
++* `w_min`, `w_max`: weight range (Step C/D)
++
++### `[alphabet]` (Step A)
++
++* `vars`: list of variable names (the space engine uses these for wedge constraints)
++* `[[alphabet.letters]]`: one entry per letter:
++
++  * `name`: stable name (used in output CSV `a,b`)
++  * `expr`: mpl-ir s-expression string (will be parsed + normalized)
++
++### `[constraints]` (Step B)
++
++* `first_entry`: list of letter names allowed as the first letter
++* `adjacency_mode`: `"allow"` or `"forbid"`
++* `adjacency_pairs`: `[[a,b], ...]` (directed)
++
++  * mode=`allow`: only these pairs are allowed; all others are forbidden
++  * mode=`forbid`: these pairs are forbidden; all others are allowed
++
++### `[pairs]` (Step E definition pinned in config; M1 default)
++
++* `count_mode = "active_word_positions"`
++
++  * Count adjacent positions over **active words** (space-invariant definition, not dependent on a particular basis choice)
++
++---
++
++## How to Run (recommended M1 CLI shape)
++
++After implementing the M1 runner, it should support something like:
++
++```bash
++cargo run -p mpl-experiments -- run --spec experiments/m1/L1_A2_cluster.toml
++```
++
++This writes the four output files under `out_dir`.
++
++---
++
++## Data Pack List
++
++1. `L1_A2_cluster.toml`
++
++   * 5-letter A2 cluster (pentagon) alphabet
++   * adjacency = 鈥渃luster adjacency鈥?(only cyclic neighbors allowed)
++
++2. `L2_Dixon_Sprime_Steinmann.toml`
++
++   * Dixon lecture 6-letter 饾挳鈥?= {a,b,c,d,e,f}
++   * first-entry = {a,b,c}
++   * adjacency = forbidden pairs listed in the lecture (usable as an engineering input for Steinmann/ES)
++
++3. `L3_Hexagon_Su_rational_subset.toml`
++
++   * Rational subset of hexagon alphabet: {u,v,w,1-u,1-v,1-w}
++   * first-entry = {u,v,w}
++   * no adjacency constraint (baseline)
++
++4. `R1_rand_affine_seed20260107.toml`
++
++   * Fixed-seed random 鈥渁ffine-linear鈥?alphabet (6 letters, 2 vars)
++   * sparse allow-adjacency (random ensemble control)
++
++---
++
++## Required Outputs (the M1 runner must guarantee these)
++
++* `basis_stats.txt`
++
++  * one line per weight; **must include `BasisStats::one_line()` verbatim**
++* `dim_vs_w.csv`
++
++  * one row per weight; must include at least:
++    `weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz`
++* `pairs.csv`
++
++  * `a,b,count` (directed; stable sorting)
++* `topology_metrics.csv`
++
++  * one row per weight (stable sorting)
++  * recommended columns:
++    `weight,n_vertices,n_edges,n_active_words,weakly_connected_components,strongly_connected_components,max_out_degree,avg_out_degree,density`
+diff --git a/crates/experiments/m1/R1_rand_affine_seed20260107.toml b/crates/experiments/m1/R1_rand_affine_seed20260107.toml
+new file mode 100644
+index 0000000..7dc7c57
+--- /dev/null
++++ b/crates/experiments/m1/R1_rand_affine_seed20260107.toml
+@@ -0,0 +1,63 @@
++# R1: Deterministic "random" affine-linear alphabet (seed=20260107) + sparse allow adjacency
++# Vars: x,y. Letters are affine-linear forms (no division), to keep sampling stable.
++
++[experiment]
++id = "R1_rand_affine_seed20260107"
++title = "Random affine-linear 6-letter alphabet (seed=20260107) with sparse allow-adjacency"
++out_dir = "reports/m1/R1_rand_affine_seed20260107"
++w_min = 1
++w_max = 12
++
++[alphabet]
++vars = ["x", "y"]
++
++# r1 = 1 - 2x - y
++[[alphabet.letters]]
++name = "r1"
++expr = "(+ 1 (* -2 x) (- y))"
++
++# r2 = 3 + x - 2y
++[[alphabet.letters]]
++name = "r2"
++expr = "(+ 3 x (* -2 y))"
++
++# r3 = 1 - x - y
++[[alphabet.letters]]
++name = "r3"
++expr = "(+ 1 (- x) (- y))"
++
++# r4 = 2 + x - y
++[[alphabet.letters]]
++name = "r4"
++expr = "(+ 2 x (- y))"
++
++# r5 = 3 - 2x + 2y
++[[alphabet.letters]]
++name = "r5"
++expr = "(+ 3 (* -2 x) (* 2 y))"
++
++# r6 = 3 - x + y
++[[alphabet.letters]]
++name = "r6"
++expr = "(+ 3 (- x) y)"
++
++[constraints]
++first_entry = ["r1", "r2", "r6"]
++
++# Only allow the listed directed edges; all other adjacencies are forbidden.
++adjacency_mode = "allow"
++adjacency_pairs = [
++  ["r1","r2"],
++  ["r1","r3"],
++  ["r1","r4"],
++  ["r1","r5"],
++  ["r2","r3"],
++  ["r3","r1"],
++  ["r3","r4"],
++  ["r4","r6"],
++  ["r5","r3"],
++  ["r6","r4"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/crates/experiments/src/bin/mpl_experiments.rs b/crates/experiments/src/bin/mpl_experiments.rs
+new file mode 100644
+index 0000000..a2b6d78
+--- /dev/null
++++ b/crates/experiments/src/bin/mpl_experiments.rs
+@@ -0,0 +1,78 @@
++use std::env;
++use std::path::PathBuf;
++
++use mpl_experiments::{load_spec, run_experiment, write_outputs};
++
++fn main() {
++    if let Err(err) = run() {
++        eprintln!("error: {err}");
++        std::process::exit(1);
++    }
++}
++
++fn run() -> Result<(), String> {
++    let mut args = env::args().skip(1);
++    let Some(cmd) = args.next() else {
++        print_help();
++        return Ok(());
++    };
++
++    match cmd.as_str() {
++        "run" => run_spec(args),
++        "--help" | "-h" => {
++            print_help();
++            Ok(())
++        }
++        other => Err(format!("unknown subcommand: {other}")),
++    }
++}
++
++fn run_spec<I>(mut args: I) -> Result<(), String>
++where
++    I: Iterator<Item = String>,
++{
++    let mut spec_path: Option<PathBuf> = None;
++    while let Some(arg) = args.next() {
++        match arg.as_str() {
++            "--spec" => {
++                spec_path = Some(PathBuf::from(next_value(&mut args, "--spec")?));
++            }
++            "--help" | "-h" => {
++                print_help();
++                return Ok(());
++            }
++            other => {
++                return Err(format!("unknown arg: {other}"));
++            }
++        }
++    }
++
++    let path = spec_path.ok_or_else(|| "missing --spec <path>".to_string())?;
++    let cfg = load_spec(&path).map_err(|err| err.to_string())?;
++    let report = run_experiment(&cfg).map_err(|err| err.to_string())?;
++    write_outputs(&report, &cfg.out_dir).map_err(|err| err.to_string())?;
++    println!(
++        "wrote basis_stats.txt, dim_vs_w.csv, pairs.csv, pairs_by_weight.csv, topology_metrics.csv to {}",
++        cfg.out_dir.display()
++    );
++    Ok(())
++}
++
++fn next_value<I>(args: &mut I, flag: &str) -> Result<String, String>
++where
++    I: Iterator<Item = String>,
++{
++    args.next()
++        .ok_or_else(|| format!("missing value after {flag}"))
++}
++
++fn print_help() {
++    println!("mpl-experiments (M1 runner)");
++    println!();
++    println!("Usage:");
++    println!("  mpl-experiments run --spec <path>");
++    println!();
++    println!("Options:");
++    println!("  --spec <path>          Experiment TOML spec");
++    println!("  --help                 Show this help");
++}
+diff --git a/crates/experiments/src/lib.rs b/crates/experiments/src/lib.rs
+new file mode 100644
+index 0000000..528e394
+--- /dev/null
++++ b/crates/experiments/src/lib.rs
+@@ -0,0 +1,939 @@
++use std::collections::{BTreeMap, BTreeSet};
++use std::fmt;
++use std::fs;
++use std::path::{Path, PathBuf};
++
++use mpl_ir::{parse_sexpr, Expr};
++use mpl_symbol::space::{
++    build_integrable_basis_with_stats, Alphabet, Basis, BasisStats, WordConstraints,
++};
++use mpl_symbol::SymbolError;
++use num_traits::Zero;
++use serde::Deserialize;
++
++#[derive(Debug)]
++pub enum ExperimentError {
++    InvalidConfig(String),
++    Symbol(SymbolError),
++    Io(std::io::Error),
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecFile {
++    experiment: SpecExperiment,
++    alphabet: SpecAlphabet,
++    constraints: SpecConstraints,
++    pairs: Option<SpecPairs>,
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecExperiment {
++    id: String,
++    #[allow(dead_code)]
++    title: Option<String>,
++    out_dir: String,
++    w_min: usize,
++    w_max: usize,
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecAlphabet {
++    vars: Vec<String>,
++    letters: Vec<SpecLetter>,
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecLetter {
++    name: String,
++    expr: String,
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecConstraints {
++    first_entry: Option<Vec<String>>,
++    adjacency_mode: Option<String>,
++    adjacency_pairs: Option<Vec<[String; 2]>>,
++}
++
++#[derive(Debug, Deserialize)]
++struct SpecPairs {
++    count_mode: Option<String>,
++}
++
++impl fmt::Display for ExperimentError {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        match self {
++            Self::InvalidConfig(msg) => write!(f, "invalid config: {msg}"),
++            Self::Symbol(err) => write!(f, "{err}"),
++            Self::Io(err) => write!(f, "{err}"),
++        }
++    }
++}
++
++impl std::error::Error for ExperimentError {}
++
++impl From<SymbolError> for ExperimentError {
++    fn from(err: SymbolError) -> Self {
++        Self::Symbol(err)
++    }
++}
++
++impl From<std::io::Error> for ExperimentError {
++    fn from(err: std::io::Error) -> Self {
++        Self::Io(err)
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum Status {
++    Ok,
++    Err,
++}
++
++impl Status {
++    fn as_str(self) -> &'static str {
++        match self {
++            Self::Ok => "ok",
++            Self::Err => "err",
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum ErrorCode {
++    NotImplemented,
++    Eval,
++    InsufficientSamples,
++    FuelExhausted,
++}
++
++impl ErrorCode {
++    fn as_str(self) -> &'static str {
++        match self {
++            Self::NotImplemented => "NotImplemented",
++            Self::Eval => "Eval",
++            Self::InsufficientSamples => "InsufficientSamples",
++            Self::FuelExhausted => "FuelExhausted",
++        }
++    }
++}
++
++pub fn load_spec(path: &Path) -> Result<ExperimentConfig, ExperimentError> {
++    let content = fs::read_to_string(path)?;
++    parse_spec_str(&content)
++        .map_err(|err| ExperimentError::InvalidConfig(format!("spec {}: {}", path.display(), err)))
++}
++
++pub fn parse_spec_str(input: &str) -> Result<ExperimentConfig, ExperimentError> {
++    let spec: SpecFile = toml::from_str(input)
++        .map_err(|err| ExperimentError::InvalidConfig(format!("toml parse error: {err}")))?;
++
++    if spec.experiment.w_min > spec.experiment.w_max {
++        return Err(ExperimentError::InvalidConfig(
++            "w_min must be <= w_max".to_string(),
++        ));
++    }
++    if spec.alphabet.letters.is_empty() {
++        return Err(ExperimentError::InvalidConfig(
++            "alphabet letters must be non-empty".to_string(),
++        ));
++    }
++
++    if let Some(pairs) = &spec.pairs {
++        if let Some(mode) = &pairs.count_mode {
++            if mode != "active_word_positions" {
++                return Err(ExperimentError::InvalidConfig(format!(
++                    "unsupported pairs.count_mode: {mode}"
++                )));
++            }
++        }
++    }
++
++    let mut letters = Vec::with_capacity(spec.alphabet.letters.len());
++    let mut names = Vec::with_capacity(spec.alphabet.letters.len());
++    let mut name_to_idx: BTreeMap<String, usize> = BTreeMap::new();
++
++    for (idx, letter) in spec.alphabet.letters.iter().enumerate() {
++        if name_to_idx.insert(letter.name.clone(), idx).is_some() {
++            return Err(ExperimentError::InvalidConfig(format!(
++                "duplicate letter name: {}",
++                letter.name
++            )));
++        }
++        let expr = parse_sexpr(&letter.expr).map_err(|err| {
++            ExperimentError::InvalidConfig(format!("letter '{}' parse error: {}", letter.name, err))
++        })?;
++        letters.push(expr.normalize());
++        names.push(letter.name.clone());
++    }
++
++    let alphabet = Alphabet {
++        name: spec.experiment.id.clone(),
++        letters,
++        letter_names: names,
++    };
++
++    let constraints = build_constraints(&spec.constraints, &name_to_idx)?;
++
++    Ok(ExperimentConfig {
++        name: spec.experiment.id,
++        out_dir: PathBuf::from(spec.experiment.out_dir),
++        alphabet,
++        constraints,
++        weight_min: spec.experiment.w_min,
++        weight_max: spec.experiment.w_max,
++        vars: spec.alphabet.vars,
++    })
++}
++
++#[derive(Clone, Debug)]
++pub struct ExperimentConfig {
++    pub name: String,
++    pub out_dir: PathBuf,
++    pub alphabet: Alphabet,
++    pub constraints: WordConstraints,
++    pub weight_min: usize,
++    pub weight_max: usize,
++    pub vars: Vec<String>,
++}
++
++#[derive(Clone, Debug)]
++pub struct ExperimentReport {
++    pub name: String,
++    pub alphabet: Alphabet,
++    pub constraints: WordConstraints,
++    pub weight_min: usize,
++    pub weight_max: usize,
++    pub vars: Vec<String>,
++    pub summaries: Vec<WeightSummary>,
++    pub pairs_total: BTreeMap<(usize, usize), u64>,
++    pub pairs_by_weight: BTreeMap<usize, BTreeMap<(usize, usize), u64>>,
++}
++
++#[derive(Clone, Debug)]
++pub struct WeightSummary {
++    pub weight: usize,
++    pub stats: BasisStats,
++    pub n_words_allowed: usize,
++    pub n_active_words: usize,
++    pub topology: TopologyMetrics,
++    pub status: Status,
++    pub error_code: Option<ErrorCode>,
++}
++
++#[derive(Clone, Debug)]
++pub struct TopologyMetrics {
++    pub n_vertices: usize,
++    pub n_edges: usize,
++    pub n_active_words: usize,
++    pub weakly_connected_components: usize,
++    pub strongly_connected_components: usize,
++    pub max_out_degree: usize,
++    pub density_num: u64,
++    pub density_den: u64,
++    pub avg_out_degree_num: u64,
++    pub avg_out_degree_den: u64,
++}
++
++pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, ExperimentError> {
++    if cfg.weight_min > cfg.weight_max {
++        return Err(ExperimentError::InvalidConfig(
++            "weight_min must be <= weight_max".to_string(),
++        ));
++    }
++
++    let (alphabet, constraints) = normalize_inputs(&cfg.alphabet, &cfg.constraints);
++    validate_constraints(&alphabet, &constraints)?;
++    let vars = if cfg.vars.is_empty() {
++        collect_vars_from_letters(&alphabet.letters)
++    } else {
++        cfg.vars.clone()
++    };
++
++    let mut summaries = Vec::new();
++    let mut pairs_total: BTreeMap<(usize, usize), u64> = BTreeMap::new();
++    let mut pairs_by_weight: BTreeMap<usize, BTreeMap<(usize, usize), u64>> = BTreeMap::new();
++    let alpha_len = alphabet.letters.len();
++
++    for weight in cfg.weight_min..=cfg.weight_max {
++        let n_words_allowed = count_allowed_words(alpha_len, &constraints, weight);
++        match build_integrable_basis_with_stats(&alphabet, &constraints, weight) {
++            Ok(basis) => {
++                let stats = basis.stats().clone();
++                let active_cols = active_columns(&basis);
++                let pair_counts = pair_counts_from_words(&basis.words, &active_cols);
++                let topology = compute_topology_metrics(alpha_len, &pair_counts, active_cols.len());
++                for ((a, b), count) in &pair_counts {
++                    *pairs_total.entry((*a, *b)).or_insert(0) += *count;
++                }
++                pairs_by_weight.insert(weight, pair_counts);
++                summaries.push(WeightSummary {
++                    weight,
++                    stats,
++                    n_words_allowed,
++                    n_active_words: active_cols.len(),
++                    topology,
++                    status: Status::Ok,
++                    error_code: None,
++                });
++            }
++            Err(err) => {
++                let stats = err.stats;
++                let topology = compute_topology_metrics(alpha_len, &BTreeMap::new(), 0);
++                let error_code = error_code_from_symbol(&err.err);
++                summaries.push(WeightSummary {
++                    weight,
++                    stats,
++                    n_words_allowed,
++                    n_active_words: 0,
++                    topology,
++                    status: Status::Err,
++                    error_code: Some(error_code),
++                });
++            }
++        }
++    }
++
++    Ok(ExperimentReport {
++        name: cfg.name.clone(),
++        alphabet,
++        constraints,
++        weight_min: cfg.weight_min,
++        weight_max: cfg.weight_max,
++        vars,
++        summaries,
++        pairs_total,
++        pairs_by_weight,
++    })
++}
++
++pub fn write_outputs(report: &ExperimentReport, out_dir: &Path) -> Result<(), ExperimentError> {
++    fs::create_dir_all(out_dir)?;
++    fs::write(out_dir.join("basis_stats.txt"), render_basis_stats(report))?;
++    fs::write(out_dir.join("dim_vs_w.csv"), render_dim_vs_w(report))?;
++    fs::write(out_dir.join("pairs.csv"), render_pairs(report))?;
++    fs::write(
++        out_dir.join("pairs_by_weight.csv"),
++        render_pairs_by_weight(report),
++    )?;
++    fs::write(
++        out_dir.join("topology_metrics.csv"),
++        render_topology_metrics(report),
++    )?;
++    Ok(())
++}
++
++pub fn render_basis_stats(report: &ExperimentReport) -> String {
++    let mut out = String::new();
++    for summary in &report.summaries {
++        out.push_str(&format!(
++            "w={} {}",
++            summary.weight,
++            summary.stats.one_line()
++        ));
++        out.push_str(" status=");
++        out.push_str(summary.status.as_str());
++        if let Some(code) = summary.error_code {
++            out.push_str(" error_code=");
++            out.push_str(code.as_str());
++        }
++        out.push('\n');
++    }
++    out
++}
++
++pub fn render_dim_vs_w(report: &ExperimentReport) -> String {
++    let mut out = String::new();
++    out.push_str("weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error\n");
++    let vars_value = vars_csv(&report.vars);
++    let vars_field = escape_csv_field(&vars_value);
++    for summary in &report.summaries {
++        let stats = &summary.stats;
++        let avg_row_nnz = if stats.rows_inserted == 0 {
++            0
++        } else {
++            stats.sum_row_nnz / stats.rows_inserted
++        };
++        let status_field = summary.status.as_str();
++        let error_code = summary.error_code.map(|code| code.as_str()).unwrap_or("");
++        let error_code_field = escape_csv_field(error_code);
++        let error_field = error_code_field.clone();
++        out.push_str(&format!(
++            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
++            summary.weight,
++            summary.n_words_allowed,
++            stats.dim,
++            stats.rank,
++            stats.rows_attempted,
++            stats.rows_inserted,
++            stats.samples_used,
++            stats.envs_total,
++            stats.rows_skipped_singular,
++            stats.constraints_insufficient_samples,
++            &vars_field,
++            stats.max_row_nnz,
++            avg_row_nnz,
++            escape_csv_field(status_field),
++            error_code_field,
++            error_field
++        ));
++        out.push('\n');
++    }
++    out
++}
++
++pub fn render_pairs(report: &ExperimentReport) -> String {
++    let mut out = String::new();
++    out.push_str("a,b,count\n");
++
++    let names = letter_display_names(&report.alphabet);
++    for (&(a, b), count) in &report.pairs_total {
++        let left = names.get(a).cloned().unwrap_or_else(|| a.to_string());
++        let right = names.get(b).cloned().unwrap_or_else(|| b.to_string());
++        out.push_str(&format!(
++            "{},{},{}\n",
++            escape_csv_field(&left),
++            escape_csv_field(&right),
++            count
++        ));
++    }
++    out
++}
++
++pub fn render_pairs_by_weight(report: &ExperimentReport) -> String {
++    let mut out = String::new();
++    out.push_str("weight,a,b,count\n");
++
++    let names = letter_display_names(&report.alphabet);
++    for (weight, pairs) in &report.pairs_by_weight {
++        for (&(a, b), count) in pairs {
++            let left = names.get(a).cloned().unwrap_or_else(|| a.to_string());
++            let right = names.get(b).cloned().unwrap_or_else(|| b.to_string());
++            out.push_str(&format!(
++                "{},{},{},{}\n",
++                weight,
++                escape_csv_field(&left),
++                escape_csv_field(&right),
++                count
++            ));
++        }
++    }
++    out
++}
++
++pub fn render_topology_metrics(report: &ExperimentReport) -> String {
++    let mut out = String::new();
++    out.push_str("weight,n_vertices,n_edges,n_active_words,weakly_connected_components,strongly_connected_components,density_num,density_den,max_out_degree,avg_out_degree_num,avg_out_degree_den,status,error_code,error\n");
++    for summary in &report.summaries {
++        let topo = &summary.topology;
++        let status_field = summary.status.as_str();
++        let error_code = summary.error_code.map(|code| code.as_str()).unwrap_or("");
++        let error_code_field = escape_csv_field(error_code);
++        let error_field = error_code_field.clone();
++        out.push_str(&format!(
++            "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
++            summary.weight,
++            topo.n_vertices,
++            topo.n_edges,
++            topo.n_active_words,
++            topo.weakly_connected_components,
++            topo.strongly_connected_components,
++            topo.density_num,
++            topo.density_den,
++            topo.max_out_degree,
++            topo.avg_out_degree_num,
++            topo.avg_out_degree_den,
++            escape_csv_field(status_field),
++            error_code_field,
++            error_field
++        ));
++    }
++    out
++}
++
++pub fn toy_alphabet_xy() -> Alphabet {
++    Alphabet {
++        name: "toy_xy".to_string(),
++        letters: vec![var("x"), var("y")],
++        letter_names: vec!["x".to_string(), "y".to_string()],
++    }
++}
++
++pub fn toy_alphabet_xyz() -> Alphabet {
++    Alphabet {
++        name: "toy_xyz".to_string(),
++        letters: vec![var("x"), var("y"), var("z")],
++        letter_names: vec!["x".to_string(), "y".to_string(), "z".to_string()],
++    }
++}
++
++pub fn alphabet_from_file(path: &Path) -> Result<Alphabet, ExperimentError> {
++    let content = fs::read_to_string(path)?;
++    let mut letters = Vec::new();
++    let mut names = Vec::new();
++
++    for (idx, line) in content.lines().enumerate() {
++        let trimmed = line.trim();
++        if trimmed.is_empty() || trimmed.starts_with('#') {
++            continue;
++        }
++        let (name_opt, expr_str) = split_name_expr(trimmed);
++        if expr_str.is_empty() {
++            return Err(ExperimentError::InvalidConfig(format!(
++                "empty expression at line {} in {}",
++                idx + 1,
++                path.display()
++            )));
++        }
++        let expr = parse_sexpr(expr_str).map_err(|err| {
++            ExperimentError::InvalidConfig(format!(
++                "alphabet parse error at line {}: {}",
++                idx + 1,
++                err
++            ))
++        })?;
++        let expr = expr.normalize();
++        let name = match name_opt {
++            Some(name) if !name.is_empty() => name,
++            _ => expr.to_canonical_string(),
++        };
++        letters.push(expr);
++        names.push(name);
++    }
++
++    if letters.is_empty() {
++        return Err(ExperimentError::InvalidConfig(format!(
++            "alphabet file '{}' has no letters",
++            path.display()
++        )));
++    }
++
++    let name = path
++        .file_stem()
++        .and_then(|stem| stem.to_str())
++        .unwrap_or("alphabet")
++        .to_string();
++
++    Ok(Alphabet {
++        name,
++        letters,
++        letter_names: names,
++    })
++}
++
++fn var(name: &str) -> Expr {
++    Expr::Var(name.to_string()).normalize()
++}
++
++fn split_name_expr(line: &str) -> (Option<String>, &str) {
++    if let Some((name, expr)) = line.split_once('=') {
++        return (Some(name.trim().to_string()), expr.trim());
++    }
++    if let Some((name, expr)) = line.split_once(':') {
++        return (Some(name.trim().to_string()), expr.trim());
++    }
++    (None, line)
++}
++
++fn normalize_inputs(
++    alphabet: &Alphabet,
++    constraints: &WordConstraints,
++) -> (Alphabet, WordConstraints) {
++    let letters: Vec<Expr> = alphabet.letters.iter().map(|e| e.normalize()).collect();
++    let names = if alphabet.letter_names.len() == letters.len() {
++        alphabet.letter_names.clone()
++    } else {
++        letters
++            .iter()
++            .map(|expr| expr.to_canonical_string())
++            .collect()
++    };
++
++    (
++        Alphabet {
++            name: alphabet.name.clone(),
++            letters,
++            letter_names: names,
++        },
++        constraints.clone(),
++    )
++}
++
++fn build_constraints(
++    spec: &SpecConstraints,
++    name_to_idx: &BTreeMap<String, usize>,
++) -> Result<WordConstraints, ExperimentError> {
++    let size = name_to_idx.len();
++    let first_allowed = match &spec.first_entry {
++        Some(entries) => {
++            let mut set = BTreeSet::new();
++            for name in entries {
++                let idx = name_to_idx.get(name).ok_or_else(|| {
++                    ExperimentError::InvalidConfig(format!(
++                        "first_entry references unknown letter: {name}"
++                    ))
++                })?;
++                set.insert(*idx);
++            }
++            Some(set)
++        }
++        None => None,
++    };
++
++    let mode = spec.adjacency_mode.as_deref().ok_or_else(|| {
++        ExperimentError::InvalidConfig("constraints.adjacency_mode is required".to_string())
++    })?;
++    let pairs = spec.adjacency_pairs.clone().unwrap_or_default();
++    let mut allowed_pairs = match mode {
++        "allow" => vec![vec![false; size]; size],
++        "forbid" => vec![vec![true; size]; size],
++        other => {
++            return Err(ExperimentError::InvalidConfig(format!(
++                "unknown adjacency_mode: {other}"
++            )))
++        }
++    };
++
++    for pair in pairs {
++        let a_name = &pair[0];
++        let b_name = &pair[1];
++        let a = name_to_idx.get(a_name).ok_or_else(|| {
++            ExperimentError::InvalidConfig(format!(
++                "adjacency_pairs references unknown letter: {a_name}"
++            ))
++        })?;
++        let b = name_to_idx.get(b_name).ok_or_else(|| {
++            ExperimentError::InvalidConfig(format!(
++                "adjacency_pairs references unknown letter: {b_name}"
++            ))
++        })?;
++        allowed_pairs[*a][*b] = mode == "allow";
++    }
++
++    Ok(WordConstraints {
++        first_allowed,
++        allowed_pairs: Some(allowed_pairs),
++    })
++}
++
++fn validate_constraints(
++    alphabet: &Alphabet,
++    constraints: &WordConstraints,
++) -> Result<(), ExperimentError> {
++    let size = alphabet.letters.len();
++    if let Some(first) = &constraints.first_allowed {
++        if first.iter().any(|&idx| idx >= size) {
++            return Err(ExperimentError::InvalidConfig(
++                "first_allowed constraint out of range".to_string(),
++            ));
++        }
++    }
++    if let Some(pairs) = &constraints.allowed_pairs {
++        if pairs.len() != size || pairs.iter().any(|row| row.len() != size) {
++            return Err(ExperimentError::InvalidConfig(
++                "allowed_pairs adjacency matrix mismatch".to_string(),
++            ));
++        }
++    }
++    Ok(())
++}
++
++fn active_columns(basis: &Basis) -> Vec<usize> {
++    // Active words are columns with nonzero coefficients in any nullspace basis vector.
++    let ncols = basis.words.len();
++    if ncols == 0 || basis.vectors.is_empty() {
++        return Vec::new();
++    }
++    let mut active = vec![false; ncols];
++    for vec in &basis.vectors {
++        for (col, coeff) in vec.iter().enumerate() {
++            if !coeff.is_zero() {
++                active[col] = true;
++            }
++        }
++    }
++    let mut cols = Vec::new();
++    for (col, is_active) in active.iter().enumerate() {
++        if *is_active {
++            cols.push(col);
++        }
++    }
++    cols
++}
++
++fn pair_counts_from_words(
++    words: &[Vec<usize>],
++    active_cols: &[usize],
++) -> BTreeMap<(usize, usize), u64> {
++    // Count definition: sum over active words of all adjacent positions (w-1 per word).
++    let mut counts = BTreeMap::new();
++    for &col in active_cols {
++        let word = match words.get(col) {
++            Some(word) => word,
++            None => continue,
++        };
++        if word.len() < 2 {
++            continue;
++        }
++        for idx in 0..(word.len() - 1) {
++            let a = word[idx];
++            let b = word[idx + 1];
++            *counts.entry((a, b)).or_insert(0) += 1;
++        }
++    }
++    counts
++}
++
++fn count_allowed_words(alpha_len: usize, constraints: &WordConstraints, weight: usize) -> usize {
++    if weight == 0 {
++        return 1;
++    }
++    if alpha_len == 0 {
++        return 0;
++    }
++    let sentinel = alpha_len;
++    let mut memo = vec![vec![None; alpha_len + 1]; weight + 1];
++
++    fn rec(
++        alpha_len: usize,
++        constraints: &WordConstraints,
++        weight: usize,
++        pos: usize,
++        prev_idx: usize,
++        memo: &mut [Vec<Option<usize>>],
++    ) -> usize {
++        if pos == weight {
++            return 1;
++        }
++        if let Some(value) = memo[pos][prev_idx] {
++            return value;
++        }
++        let prev = if prev_idx == alpha_len {
++            None
++        } else {
++            Some(prev_idx)
++        };
++        let mut total = 0;
++        for next in 0..alpha_len {
++            if constraints.allow_step(pos, prev, next) {
++                total += rec(alpha_len, constraints, weight, pos + 1, next, memo);
++            }
++        }
++        memo[pos][prev_idx] = Some(total);
++        total
++    }
++
++    rec(alpha_len, constraints, weight, 0, sentinel, &mut memo)
++}
++
++fn compute_topology_metrics(
++    n_vertices: usize,
++    pair_counts: &BTreeMap<(usize, usize), u64>,
++    n_active_words: usize,
++) -> TopologyMetrics {
++    let mut edges = Vec::new();
++    for (&(a, b), _count) in pair_counts {
++        if a >= n_vertices || b >= n_vertices {
++            continue;
++        }
++        edges.push((a, b));
++    }
++
++    let mut adj = vec![Vec::new(); n_vertices];
++    let mut rev = vec![Vec::new(); n_vertices];
++    for (a, b) in &edges {
++        adj[*a].push(*b);
++        rev[*b].push(*a);
++    }
++    for neighbors in &mut adj {
++        neighbors.sort_unstable();
++        neighbors.dedup();
++    }
++    for neighbors in &mut rev {
++        neighbors.sort_unstable();
++        neighbors.dedup();
++    }
++
++    let n_edges = edges.len();
++    let weakly_connected_components = weakly_connected_components(n_vertices, &edges);
++    let strongly_connected_components = strongly_connected_components(n_vertices, &adj, &rev);
++
++    let max_out_degree = adj
++        .iter()
++        .map(|neighbors| neighbors.len())
++        .max()
++        .unwrap_or(0);
++    let avg_out_degree_num = n_edges as u64;
++    let avg_out_degree_den = if n_vertices == 0 {
++        1
++    } else {
++        n_vertices as u64
++    };
++    let density_num = n_edges as u64;
++    let density_den = if n_vertices == 0 {
++        1
++    } else {
++        (n_vertices as u64) * (n_vertices as u64)
++    };
++
++    TopologyMetrics {
++        n_vertices,
++        n_edges,
++        n_active_words,
++        weakly_connected_components,
++        strongly_connected_components,
++        max_out_degree,
++        density_num,
++        density_den,
++        avg_out_degree_num,
++        avg_out_degree_den,
++    }
++}
++
++fn weakly_connected_components(n_vertices: usize, edges: &[(usize, usize)]) -> usize {
++    if n_vertices == 0 {
++        return 0;
++    }
++    let mut adj = vec![Vec::new(); n_vertices];
++    for (a, b) in edges {
++        adj[*a].push(*b);
++        adj[*b].push(*a);
++    }
++    for neighbors in &mut adj {
++        neighbors.sort_unstable();
++        neighbors.dedup();
++    }
++
++    let mut visited = vec![false; n_vertices];
++    let mut count = 0;
++    for v in 0..n_vertices {
++        if visited[v] {
++            continue;
++        }
++        count += 1;
++        let mut stack = vec![v];
++        visited[v] = true;
++        while let Some(node) = stack.pop() {
++            for &next in &adj[node] {
++                if !visited[next] {
++                    visited[next] = true;
++                    stack.push(next);
++                }
++            }
++        }
++    }
++    count
++}
++
++fn strongly_connected_components(
++    n_vertices: usize,
++    adj: &[Vec<usize>],
++    rev: &[Vec<usize>],
++) -> usize {
++    if n_vertices == 0 {
++        return 0;
++    }
++    let mut visited = vec![false; n_vertices];
++    let mut order = Vec::with_capacity(n_vertices);
++
++    for v in 0..n_vertices {
++        if visited[v] {
++            continue;
++        }
++        let mut stack = vec![(v, 0usize)];
++        visited[v] = true;
++        while let Some((node, idx)) = stack.pop() {
++            if idx < adj[node].len() {
++                stack.push((node, idx + 1));
++                let next = adj[node][idx];
++                if !visited[next] {
++                    visited[next] = true;
++                    stack.push((next, 0));
++                }
++            } else {
++                order.push(node);
++            }
++        }
++    }
++
++    visited.fill(false);
++    let mut count = 0;
++    for &v in order.iter().rev() {
++        if visited[v] {
++            continue;
++        }
++        count += 1;
++        let mut stack = vec![v];
++        visited[v] = true;
++        while let Some(node) = stack.pop() {
++            for &next in &rev[node] {
++                if !visited[next] {
++                    visited[next] = true;
++                    stack.push(next);
++                }
++            }
++        }
++    }
++    count
++}
++
++fn letter_display_names(alpha: &Alphabet) -> Vec<String> {
++    if alpha.letter_names.len() == alpha.letters.len() {
++        return alpha.letter_names.clone();
++    }
++    alpha
++        .letters
++        .iter()
++        .map(|expr| expr.normalize().to_canonical_string())
++        .collect()
++}
++
++fn error_code_from_symbol(err: &SymbolError) -> ErrorCode {
++    match err {
++        SymbolError::NotImplemented(_) => ErrorCode::NotImplemented,
++        SymbolError::Eval(_) => ErrorCode::Eval,
++        SymbolError::InsufficientSamples => ErrorCode::InsufficientSamples,
++        SymbolError::FuelExhausted => ErrorCode::FuelExhausted,
++    }
++}
++
++fn collect_vars_from_letters(letters: &[Expr]) -> Vec<String> {
++    let mut vars = BTreeSet::new();
++    for letter in letters {
++        collect_vars(letter, &mut vars);
++    }
++    vars.into_iter().collect()
++}
++
++fn collect_vars(expr: &Expr, vars: &mut BTreeSet<String>) {
++    match expr {
++        Expr::Var(name) => {
++            vars.insert(name.clone());
++        }
++        Expr::Add(children) | Expr::Mul(children) => {
++            for child in children {
++                collect_vars(child, vars);
++            }
++        }
++        Expr::Neg(inner) => collect_vars(inner, vars),
++        Expr::Pow(base, _) => collect_vars(base, vars),
++        Expr::Rational(_) => {}
++        Expr::Log(_) | Expr::Li2(_) => {}
++    }
++}
++
++fn vars_csv(vars: &[String]) -> String {
++    if vars.is_empty() {
++        return String::new();
++    }
++    vars.join(",")
++}
++
++fn escape_csv_field(value: &str) -> String {
++    let needs_quotes = value.contains(',') || value.contains('"') || value.contains('\n');
++    if !needs_quotes {
++        return value.to_string();
++    }
++    let escaped = value.replace('"', "\"\"");
++    format!("\"{escaped}\"")
++}
+diff --git a/crates/experiments/tests/runner.rs b/crates/experiments/tests/runner.rs
+new file mode 100644
+index 0000000..618832c
+--- /dev/null
++++ b/crates/experiments/tests/runner.rs
+@@ -0,0 +1,154 @@
++use std::path::PathBuf;
++
++use mpl_experiments::{
++    parse_spec_str, render_basis_stats, render_dim_vs_w, render_pairs, render_pairs_by_weight,
++    render_topology_metrics, run_experiment, toy_alphabet_xy, ExperimentConfig,
++};
++use mpl_symbol::space::WordConstraints;
++
++fn count_words(alpha_len: usize, constraints: &WordConstraints, weight: usize) -> usize {
++    fn rec(
++        alpha_len: usize,
++        constraints: &WordConstraints,
++        weight: usize,
++        pos: usize,
++        prev: Option<usize>,
++    ) -> usize {
++        if pos == weight {
++            return 1;
++        }
++        let mut total = 0;
++        for next in 0..alpha_len {
++            if constraints.allow_step(pos, prev, next) {
++                total += rec(alpha_len, constraints, weight, pos + 1, Some(next));
++            }
++        }
++        total
++    }
++    if weight == 0 {
++        return 1;
++    }
++    rec(alpha_len, constraints, weight, 0, None)
++}
++
++#[test]
++fn toy_xy_dim_is_w_plus_1() {
++    let cfg = ExperimentConfig {
++        name: "toy_xy".to_string(),
++        out_dir: PathBuf::from("unused"),
++        alphabet: toy_alphabet_xy(),
++        constraints: WordConstraints::default(),
++        weight_min: 1,
++        weight_max: 6,
++        vars: Vec::new(),
++    };
++
++    let report = run_experiment(&cfg).unwrap();
++    for summary in &report.summaries {
++        assert_eq!(summary.stats.dim, summary.weight + 1);
++    }
++}
++
++#[test]
++fn adjacency_constraint_removes_pair_and_matches_word_count() {
++    let mut allowed_pairs = vec![vec![true; 2]; 2];
++    allowed_pairs[1][0] = false;
++    let constraints = WordConstraints {
++        first_allowed: None,
++        allowed_pairs: Some(allowed_pairs),
++    };
++
++    let cfg = ExperimentConfig {
++        name: "toy_xy_no_y_to_x".to_string(),
++        out_dir: PathBuf::from("unused"),
++        alphabet: toy_alphabet_xy(),
++        constraints: constraints.clone(),
++        weight_min: 3,
++        weight_max: 3,
++        vars: Vec::new(),
++    };
++
++    let report = run_experiment(&cfg).unwrap();
++    let pairs_csv = render_pairs(&report);
++    for line in pairs_csv.lines().skip(1) {
++        let parts: Vec<&str> = line.split(',').collect();
++        assert!(parts.len() >= 3);
++        if parts[0] == "y" && parts[1] == "x" {
++            panic!("found forbidden pair in pairs.csv");
++        }
++    }
++    let pairs_by_weight_csv = render_pairs_by_weight(&report);
++    for line in pairs_by_weight_csv.lines().skip(1) {
++        let parts: Vec<&str> = line.split(',').collect();
++        assert!(parts.len() >= 4);
++        if parts[1] == "y" && parts[2] == "x" {
++            panic!("found forbidden pair in pairs_by_weight.csv");
++        }
++    }
++
++    let expected = count_words(2, &constraints, 3);
++    assert_eq!(report.summaries[0].n_words_allowed, expected);
++}
++
++#[test]
++fn outputs_are_deterministic() {
++    let cfg = ExperimentConfig {
++        name: "toy_xy_determinism".to_string(),
++        out_dir: PathBuf::from("unused"),
++        alphabet: toy_alphabet_xy(),
++        constraints: WordConstraints::default(),
++        weight_min: 2,
++        weight_max: 4,
++        vars: Vec::new(),
++    };
++
++    let r1 = run_experiment(&cfg).unwrap();
++    let r2 = run_experiment(&cfg).unwrap();
++
++    assert_eq!(render_basis_stats(&r1), render_basis_stats(&r2));
++    assert_eq!(render_dim_vs_w(&r1), render_dim_vs_w(&r2));
++    assert_eq!(render_pairs(&r1), render_pairs(&r2));
++    assert_eq!(render_pairs_by_weight(&r1), render_pairs_by_weight(&r2));
++    assert_eq!(render_topology_metrics(&r1), render_topology_metrics(&r2));
++}
++
++#[test]
++fn parse_spec_builds_constraints() {
++    let spec = r#"
++[experiment]
++id = "T0"
++title = "test"
++out_dir = "reports/m1/T0"
++w_min = 1
++w_max = 2
++
++[alphabet]
++vars = ["x", "y"]
++
++[[alphabet.letters]]
++name = "x"
++expr = "x"
++
++[[alphabet.letters]]
++name = "y"
++expr = "y"
++
++[constraints]
++first_entry = ["x"]
++adjacency_mode = "forbid"
++adjacency_pairs = [["y","x"]]
++
++[pairs]
++count_mode = "active_word_positions"
++"#;
++
++    let cfg = parse_spec_str(spec).unwrap();
++    assert_eq!(cfg.alphabet.letters.len(), 2);
++    assert_eq!(cfg.alphabet.letter_names, vec!["x", "y"]);
++    let pairs = cfg.constraints.allowed_pairs.unwrap();
++    assert!(!pairs[1][0]);
++    assert!(pairs[0][1]);
++    let first = cfg.constraints.first_allowed.unwrap();
++    assert!(first.contains(&0));
++    assert!(!first.contains(&1));
++}
+diff --git a/crates/symbol/src/hopf.rs b/crates/symbol/src/hopf.rs
+new file mode 100644
+index 0000000..b0896f8
+--- /dev/null
++++ b/crates/symbol/src/hopf.rs
+@@ -0,0 +1,47 @@
++use std::collections::BTreeMap;
++
++use num_traits::Zero;
++
++use crate::tensor::Coeff;
++use crate::word::Word;
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct Coproduct {
++    terms: BTreeMap<(Word, Word), Coeff>,
++}
++
++impl Coproduct {
++    pub fn zero() -> Self {
++        Self {
++            terms: BTreeMap::new(),
++        }
++    }
++
++    pub fn is_zero(&self) -> bool {
++        self.terms.is_empty()
++    }
++
++    pub fn terms(&self) -> impl Iterator<Item = (&(Word, Word), &Coeff)> {
++        self.terms.iter()
++    }
++
++    pub(crate) fn add_term(&mut self, left: Word, right: Word, coeff: Coeff) {
++        if coeff.is_zero() {
++            return;
++        }
++        use std::collections::btree_map::Entry;
++        match self.terms.entry((left, right)) {
++            Entry::Vacant(entry) => {
++                entry.insert(coeff);
++            }
++            Entry::Occupied(mut entry) => {
++                let updated = *entry.get() + coeff;
++                if updated.is_zero() {
++                    entry.remove();
++                } else {
++                    entry.insert(updated);
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/symbol/src/word.rs b/crates/symbol/src/word.rs
+new file mode 100644
+index 0000000..3fe81ec
+--- /dev/null
++++ b/crates/symbol/src/word.rs
+@@ -0,0 +1,132 @@
++use std::cmp::Ordering;
++use std::fmt;
++
++use mpl_ir::Expr;
++
++#[derive(Clone, Debug)]
++pub struct Word(pub Vec<Expr>);
++
++impl Word {
++    pub fn letters(&self) -> &[Expr] {
++        &self.0
++    }
++
++    pub fn len(&self) -> usize {
++        self.0.len()
++    }
++
++    pub fn is_empty(&self) -> bool {
++        self.0.is_empty()
++    }
++
++    pub fn shuffle(&self, other: &Word) -> Vec<Word> {
++        let mut out = Vec::new();
++        let mut prefix = Vec::with_capacity(self.len() + other.len());
++        shuffle_rec(self.letters(), other.letters(), &mut prefix, &mut out);
++        out
++    }
++
++    pub fn deconcat_splits(&self) -> Vec<(Word, Word)> {
++        let mut out = Vec::with_capacity(self.len() + 1);
++        for split in 0..=self.len() {
++            let left = Word(self.0[..split].to_vec());
++            let right = Word(self.0[split..].to_vec());
++            out.push((left, right));
++        }
++        out
++    }
++}
++
++impl PartialEq for Word {
++    fn eq(&self, other: &Self) -> bool {
++        self.cmp(other) == Ordering::Equal
++    }
++}
++
++impl Eq for Word {}
++
++impl PartialOrd for Word {
++    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
++        Some(self.cmp(other))
++    }
++}
++
++impl Ord for Word {
++    fn cmp(&self, other: &Self) -> Ordering {
++        let mut left = self.0.iter().map(|expr| expr.to_canonical_string());
++        let mut right = other.0.iter().map(|expr| expr.to_canonical_string());
++        loop {
++            match (left.next(), right.next()) {
++                (Some(a), Some(b)) => {
++                    let order = a.cmp(&b);
++                    if order != Ordering::Equal {
++                        return order;
++                    }
++                }
++                (None, Some(_)) => return Ordering::Less,
++                (Some(_), None) => return Ordering::Greater,
++                (None, None) => return Ordering::Equal,
++            }
++        }
++    }
++}
++
++impl fmt::Display for Word {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        write!(f, "[")?;
++        for (idx, letter) in self.0.iter().enumerate() {
++            if idx > 0 {
++                write!(f, ", ")?;
++            }
++            write!(f, "{}", letter.to_canonical_string())?;
++        }
++        write!(f, "]")
++    }
++}
++
++pub fn shuffle_count_bounded(left_len: usize, right_len: usize, limit: u64) -> Option<u64> {
++    if limit == 0 {
++        return None;
++    }
++    let n = left_len + right_len;
++    if n == 0 {
++        return Some(1);
++    }
++    let k = left_len.min(right_len);
++    if k == 0 {
++        return Some(1);
++    }
++    let mut result: u128 = 1;
++    for i in 1..=k {
++        let numerator = (n - k + i) as u128;
++        result = result.checked_mul(numerator)?;
++        result /= i as u128;
++        if result > limit as u128 {
++            return None;
++        }
++    }
++    Some(result as u64)
++}
++
++fn shuffle_rec(left: &[Expr], right: &[Expr], prefix: &mut Vec<Expr>, out: &mut Vec<Word>) {
++    if left.is_empty() {
++        let mut word = prefix.clone();
++        word.extend_from_slice(right);
++        out.push(Word(word));
++        return;
++    }
++    if right.is_empty() {
++        let mut word = prefix.clone();
++        word.extend_from_slice(left);
++        out.push(Word(word));
++        return;
++    }
++
++    prefix.push(left[0].clone());
++    shuffle_rec(&left[1..], right, prefix, out);
++    prefix.pop();
++
++    prefix.push(right[0].clone());
++    shuffle_rec(left, &right[1..], prefix, out);
++    prefix.pop();
++}
+diff --git a/crates/symbol/tests/shuffle.rs b/crates/symbol/tests/shuffle.rs
+new file mode 100644
+index 0000000..5350ff3
+--- /dev/null
++++ b/crates/symbol/tests/shuffle.rs
+@@ -0,0 +1,112 @@
++use mpl_ir::{parse_sexpr, Expr};
++use mpl_symbol::space::check_integrable_n;
++use mpl_symbol::{symbol, Symbol, Word};
++use num_rational::Rational64;
++
++fn r(numer: i64, denom: i64) -> Rational64 {
++    Rational64::new(numer, denom)
++}
++
++fn normalized(input: &str) -> Expr {
++    parse_sexpr(input).expect("parse").normalize()
++}
++
++#[test]
++fn symbol_log_pow_three_is_shuffle_factorial() {
++    let expr = normalized("(^ (log x) 3)");
++    let sym = symbol(&expr).expect("symbol");
++    let x = normalized("x");
++    let expected = Symbol::from_terms(vec![(Word(vec![x.clone(), x.clone(), x]), r(6, 1))]);
++    assert_eq!(sym, expected);
++}
++
++#[test]
++fn symbol_log_log_is_shuffle_sum() {
++    let expr = normalized("(* (log a) (log b))");
++    let sym = symbol(&expr).expect("symbol");
++    let a = normalized("a");
++    let b = normalized("b");
++    let expected = Symbol::from_terms(vec![
++        (Word(vec![a.clone(), b.clone()]), r(1, 1)),
++        (Word(vec![b, a]), r(1, 1)),
++    ]);
++    assert_eq!(sym, expected);
++}
++
++#[test]
++fn symbol_li2_log_shuffle_weight3() {
++    let expr = normalized("(* (li2 x) (log y))");
++    let sym = symbol(&expr).expect("symbol");
++    let one_minus_x = normalized("(+ 1 (* -1 x))");
++    let x = normalized("x");
++    let y = normalized("y");
++    let expected = Symbol::from_terms(vec![
++        (
++            Word(vec![one_minus_x.clone(), x.clone(), y.clone()]),
++            r(-1, 1),
++        ),
++        (
++            Word(vec![one_minus_x.clone(), y.clone(), x.clone()]),
++            r(-1, 1),
++        ),
++        (Word(vec![y, one_minus_x, x]), r(-1, 1)),
++    ]);
++    assert_eq!(sym, expected);
++}
++
++#[test]
++fn symbol_li2_li2_shuffle_weight4() {
++    let expr = normalized("(* (li2 x) (li2 y))");
++    let sym = symbol(&expr).expect("symbol");
++    let a = normalized("(+ 1 (* -1 x))");
++    let b = normalized("x");
++    let c = normalized("(+ 1 (* -1 y))");
++    let d = normalized("y");
++    let expected = Symbol::from_terms(vec![
++        (
++            Word(vec![a.clone(), b.clone(), c.clone(), d.clone()]),
++            r(1, 1),
++        ),
++        (
++            Word(vec![a.clone(), c.clone(), b.clone(), d.clone()]),
++            r(1, 1),
++        ),
++        (
++            Word(vec![a.clone(), c.clone(), d.clone(), b.clone()]),
++            r(1, 1),
++        ),
++        (
++            Word(vec![c.clone(), a.clone(), b.clone(), d.clone()]),
++            r(1, 1),
++        ),
++        (
++            Word(vec![c.clone(), a.clone(), d.clone(), b.clone()]),
++            r(1, 1),
++        ),
++        (Word(vec![c, d, a, b]), r(1, 1)),
++    ]);
++    assert_eq!(sym, expected);
++}
++
++#[test]
++fn integrability_n_holds_for_shuffle_examples() {
++    let exprs = [
++        "(^ (log x) 3)",
++        "(* (li2 x) (log y))",
++        "(* (li2 x) (li2 y))",
++    ];
++    for expr in exprs {
++        let sym = symbol(&normalized(expr)).expect("symbol");
++        assert!(check_integrable_n(&sym).expect("integrable"));
++    }
++}
++
++#[test]
++fn symbol_to_string_is_deterministic() {
++    let expr = normalized("(* (li2 x) (log y))");
++    let first = symbol(&expr).expect("symbol").to_string();
++    for _ in 0..10 {
++        let next = symbol(&expr).expect("symbol").to_string();
++        assert_eq!(first, next);
++    }
++}
+diff --git a/crates/symbol/tests/stress.rs b/crates/symbol/tests/stress.rs
+new file mode 100644
+index 0000000..c06f1cf
+--- /dev/null
++++ b/crates/symbol/tests/stress.rs
+@@ -0,0 +1,59 @@
++use mpl_ir::{parse_sexpr, Expr};
++use mpl_symbol::space::check_integrable_n;
++use mpl_symbol::{symbol_with_fuel, ShuffleFuel, SymbolError};
++
++const FUEL_LOGS_8: u64 = 46_232;
++const TERMS_LOGS_8: usize = 40_320;
++
++fn normalized(input: &str) -> Expr {
++    parse_sexpr(input).unwrap().normalize()
++}
++
++fn log_product_expr(names: &[&str]) -> Expr {
++    let mut parts = Vec::with_capacity(names.len());
++    for name in names {
++        parts.push(format!("(log {name})"));
++    }
++    let expr = format!("(* {})", parts.join(" "));
++    normalized(&expr)
++}
++
++#[test]
++#[ignore]
++fn stress_shuffle_full_expand_logs_8() {
++    let expr = log_product_expr(&["a", "b", "c", "d", "e", "f", "g", "h"]);
++    let mut fuel = ShuffleFuel::new(FUEL_LOGS_8);
++    let sym = symbol_with_fuel(&expr, &mut fuel).unwrap();
++    assert_eq!(sym.terms().count(), TERMS_LOGS_8);
++    assert_eq!(fuel.remaining(), Some(0));
++}
++
++#[test]
++#[ignore]
++fn stress_shuffle_fuel_boundary_logs_8() {
++    let expr = log_product_expr(&["a", "b", "c", "d", "e", "f", "g", "h"]);
++    let mut fuel = ShuffleFuel::new(FUEL_LOGS_8 - 1);
++    let result = symbol_with_fuel(&expr, &mut fuel);
++    assert!(matches!(result, Err(SymbolError::FuelExhausted)));
++}
++
++#[test]
++#[ignore]
++fn stress_shuffle_abort_logs_20_small_fuel() {
++    let expr = log_product_expr(&[
++        "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
++        "s", "t",
++    ]);
++    let mut fuel = ShuffleFuel::new(1_000);
++    let result = symbol_with_fuel(&expr, &mut fuel);
++    assert!(matches!(result, Err(SymbolError::FuelExhausted)));
++}
++
++#[test]
++#[ignore]
++fn stress_integrability_weight10_li2_logpow() {
++    let expr = normalized("(* (li2 x) (^ (log y) 8))");
++    let mut fuel = ShuffleFuel::new(1_900_000);
++    let sym = symbol_with_fuel(&expr, &mut fuel).unwrap();
++    assert!(check_integrable_n(&sym).unwrap());
++}
+diff --git a/experiments/m1/L1_A2_cluster.toml b/experiments/m1/L1_A2_cluster.toml
+new file mode 100644
+index 0000000..31f2cfb
+--- /dev/null
++++ b/experiments/m1/L1_A2_cluster.toml
+@@ -0,0 +1,52 @@
++# L1: A2 cluster (pentagon) letter set + cluster adjacency as pair constraint
++# Source: standard A2 cluster example (x_{m+1} x_{m-1} = 1 + x_m), with explicit x3,x4,x5 in terms of x1,x2.
++
++[experiment]
++id = "L1_A2_cluster"
++title = "A2 cluster (pentagon) adjacency: only cyclic neighbors allowed"
++out_dir = "reports/m1/L1_A2_cluster"
++w_min = 1
++w_max = 12
++
++[alphabet]
++vars = ["x1", "x2"]
++
++[[alphabet.letters]]
++name = "x1"
++expr = "x1"
++
++[[alphabet.letters]]
++name = "x2"
++expr = "x2"
++
++# x3 = (1 + x2)/x1
++[[alphabet.letters]]
++name = "x3"
++expr = "(/ (+ 1 x2) x1)"
++
++# x4 = (1 + x1 + x2)/(x1 x2)
++[[alphabet.letters]]
++name = "x4"
++expr = "(/ (+ 1 x1 x2) x1 x2)"
++
++# x5 = (1 + x1)/x2
++[[alphabet.letters]]
++name = "x5"
++expr = "(/ (+ 1 x1) x2)"
++
++[constraints]
++# First-entry: choose the initial cluster {x1,x2}. (You can broaden this to all letters later.)
++first_entry = ["x1", "x2"]
++
++# Adjacency: allow only cyclic neighbors (both directions).
++adjacency_mode = "allow"
++adjacency_pairs = [
++  ["x1","x2"], ["x2","x1"],
++  ["x2","x3"], ["x3","x2"],
++  ["x3","x4"], ["x4","x3"],
++  ["x4","x5"], ["x5","x4"],
++  ["x5","x1"], ["x1","x5"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/experiments/m1/L2_Dixon_Sprime_Steinmann.toml b/experiments/m1/L2_Dixon_Sprime_Steinmann.toml
+new file mode 100644
+index 0000000..718bf82
+--- /dev/null
++++ b/experiments/m1/L2_Dixon_Sprime_Steinmann.toml
+@@ -0,0 +1,60 @@
++# L2: Dixon lecture letter set S'={a,b,c,d,e,f} + Steinmann/ES forbidden adjacent pairs
++# Variables: u,v,w (cross ratios).
++# Letters:
++#   a=u/(vw), b=v/(wu), c=w/(uv), d=(1-u)/u, e=(1-v)/v, f=(1-w)/w
++
++[experiment]
++id = "L2_Dixon_Sprime_Steinmann"
++title = "Dixon S' 6-letter alphabet with first-entry {a,b,c} and forbidden adjacent pairs"
++out_dir = "reports/m1/L2_Dixon_Sprime_Steinmann"
++w_min = 1
++w_max = 8
++
++[alphabet]
++vars = ["u", "v", "w"]
++
++[[alphabet.letters]]
++name = "a"
++expr = "(/ u v w)"
++
++[[alphabet.letters]]
++name = "b"
++expr = "(/ v w u)"
++
++[[alphabet.letters]]
++name = "c"
++expr = "(/ w u v)"
++
++# d=(1-u)/u
++[[alphabet.letters]]
++name = "d"
++expr = "(/ (+ 1 (- u)) u)"
++
++# e=(1-v)/v
++[[alphabet.letters]]
++name = "e"
++expr = "(/ (+ 1 (- v)) v)"
++
++# f=(1-w)/w
++[[alphabet.letters]]
++name = "f"
++expr = "(/ (+ 1 (- w)) w)"
++
++[constraints]
++# First-entry: physical first-entry condition mapped to S' subset {a,b,c}.
++first_entry = ["a", "b", "c"]
++
++# Adjacency: forbid the listed directed pairs; allow all other pairs.
++adjacency_mode = "forbid"
++adjacency_pairs = [
++  ["d","e"], ["e","d"],
++  ["e","f"], ["f","e"],
++  ["f","d"], ["d","f"],
++
++  ["a","d"], ["d","a"],
++  ["b","e"], ["e","b"],
++  ["c","f"], ["f","c"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/experiments/m1/L3_Hexagon_Su_rational_subset.toml b/experiments/m1/L3_Hexagon_Su_rational_subset.toml
+new file mode 100644
+index 0000000..0ea3dbd
+--- /dev/null
++++ b/experiments/m1/L3_Hexagon_Su_rational_subset.toml
+@@ -0,0 +1,47 @@
++# L3: Hexagon functions rational subset S_u^{rat} = {u,v,w,1-u,1-v,1-w}
++# Note: full hexagon alphabet includes y_u,y_v,y_w (square roots); this M1 pack keeps only the rational subset.
++
++[experiment]
++id = "L3_Hexagon_Su_rational_subset"
++title = "Hexagon rational subset: first-entry {u,v,w}, no adjacency constraint (baseline)"
++out_dir = "reports/m1/L3_Hexagon_Su_rational_subset"
++w_min = 1
++w_max = 6
++
++[alphabet]
++vars = ["u", "v", "w"]
++
++[[alphabet.letters]]
++name = "u"
++expr = "u"
++
++[[alphabet.letters]]
++name = "v"
++expr = "v"
++
++[[alphabet.letters]]
++name = "w"
++expr = "w"
++
++[[alphabet.letters]]
++name = "1-u"
++expr = "(+ 1 (- u))"
++
++[[alphabet.letters]]
++name = "1-v"
++expr = "(+ 1 (- v))"
++
++[[alphabet.letters]]
++name = "1-w"
++expr = "(+ 1 (- w))"
++
++[constraints]
++first_entry = ["u", "v", "w"]
++
++# No adjacency constraint:
++# - mode=allow with empty list would forbid everything, so we set mode=forbid with empty list (forbid nothing).
++adjacency_mode = "forbid"
++adjacency_pairs = []
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git a/experiments/m1/M1_data.md b/experiments/m1/M1_data.md
+new file mode 100644
+index 0000000..13cbc42
+--- /dev/null
++++ b/experiments/m1/M1_data.md
+@@ -0,0 +1,128 @@
++# M1 Data Pack: File-driven space-engine experiments (v0.1.5)
++
++This directory provides **4 experiment inputs** (TOML) that can be fed directly into an **M1 runner**. The goal is that, once you implement **M1 (minimal experimental loop)**, you can:
++
++* Read `*.toml` 鈫?construct **Alphabet + WordConstraints (first-entry + adjacency)** (Step A/B)
++* For each weight `w_min..=w_max`, build the integrable basis (Step D)
++* Automatically produce:
++
++  * `basis_stats.txt`
++  * `dim_vs_w.csv`
++  * `pairs.csv`
++  * `pairs_by_weight.csv`
++  * `topology_metrics.csv`
++
++> Note: M1 includes only **first-entry + adjacency**. Steinmann/ES, triplets, genealogical, etc. are **M2+**.
++
++---
++
++## Directory Layout
++
++```
++experiments/m1/
++  M1_data.md
++  L1_A2_cluster.toml
++  L2_Dixon_Sprime_Steinmann.toml
++  L3_Hexagon_Su_rational_subset.toml
++  R1_rand_affine_seed20260107.toml
++```
++
++---
++
++## TOML Spec (aligned with the Experiment Spec Book: Step A/B/C/D)
++
++Each `*.toml` follows the same minimal schema:
++
++### `[experiment]` (general metadata / Step 0)
++
++* `id`: experiment/data-pack id (string)
++* `title`: description
++* `out_dir`: output directory (relative to repo root)
++* `w_min`, `w_max`: weight range (Step C/D)
++
++### `[alphabet]` (Step A)
++
++* `vars`: list of variable names (the space engine uses these for wedge constraints)
++* `[[alphabet.letters]]`: one entry per letter:
++
++  * `name`: stable name (used in output CSV `a,b`)
++  * `expr`: mpl-ir s-expression string (will be parsed + normalized)
++
++### `[constraints]` (Step B)
++
++* `first_entry`: list of letter names allowed as the first letter
++* `adjacency_mode`: `"allow"` or `"forbid"`
++* `adjacency_pairs`: `[[a,b], ...]` (directed)
++
++  * mode=`allow`: only these pairs are allowed; all others are forbidden
++  * mode=`forbid`: these pairs are forbidden; all others are allowed
++
++### `[pairs]` (Step E definition pinned in config; M1 default)
++
++* `count_mode = "active_word_positions"`
++
++  * Count adjacent positions over **active words** (space-invariant definition, not dependent on a particular basis choice)
++  * Active words = columns with nonzero coeff in any nullspace basis vector
++
++---
++
++## How to Run (recommended M1 CLI shape)
++
++After implementing the M1 runner, it should support something like:
++
++```bash
++cargo run -p mpl-experiments -- run --spec experiments/m1/L1_A2_cluster.toml
++```
++
++This writes the four output files under `out_dir`.
++
++---
++
++## Data Pack List
++
++1. `L1_A2_cluster.toml`
++
++   * 5-letter A2 cluster (pentagon) alphabet
++   * adjacency = 鈥渃luster adjacency鈥?(only cyclic neighbors allowed)
++
++2. `L2_Dixon_Sprime_Steinmann.toml`
++
++   * Dixon lecture 6-letter ??鈥?= {a,b,c,d,e,f}
++   * first-entry = {a,b,c}
++   * adjacency = forbidden pairs listed in the lecture (usable as an engineering input for Steinmann/ES)
++
++3. `L3_Hexagon_Su_rational_subset.toml`
++
++   * Rational subset of hexagon alphabet: {u,v,w,1-u,1-v,1-w}
++   * first-entry = {u,v,w}
++   * no adjacency constraint (baseline)
++
++4. `R1_rand_affine_seed20260107.toml`
++
++   * Fixed-seed random 鈥渁ffine-linear鈥?alphabet (6 letters, 2 vars)
++   * sparse allow-adjacency (random ensemble control)
++
++---
++
++## Required Outputs (the M1 runner must guarantee these)
++
++* `basis_stats.txt`
++
++  * one line per weight; **must include `BasisStats::one_line()` verbatim**
++* `dim_vs_w.csv`
++
++  * one row per weight; must include at least:
++    `weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code`
++  * if an `error` column exists, it must equal `error_code` (stable)
++* `pairs.csv`
++
++  * `a,b,count` (directed; stable sorting)
++  * aggregated across all weights
++* `pairs_by_weight.csv`
++
++  * `weight,a,b,count` (directed; stable sorting)
++* `topology_metrics.csv`
++
++  * one row per weight (stable sorting)
++  * recommended columns:
++    `weight,n_vertices,n_edges,n_active_words,weakly_connected_components,strongly_connected_components,density_num,density_den,max_out_degree,avg_out_degree_num,avg_out_degree_den,status,error_code,error`
+diff --git a/experiments/m1/R1_rand_affine_seed20260107.toml b/experiments/m1/R1_rand_affine_seed20260107.toml
+new file mode 100644
+index 0000000..7dc7c57
+--- /dev/null
++++ b/experiments/m1/R1_rand_affine_seed20260107.toml
+@@ -0,0 +1,63 @@
++# R1: Deterministic "random" affine-linear alphabet (seed=20260107) + sparse allow adjacency
++# Vars: x,y. Letters are affine-linear forms (no division), to keep sampling stable.
++
++[experiment]
++id = "R1_rand_affine_seed20260107"
++title = "Random affine-linear 6-letter alphabet (seed=20260107) with sparse allow-adjacency"
++out_dir = "reports/m1/R1_rand_affine_seed20260107"
++w_min = 1
++w_max = 12
++
++[alphabet]
++vars = ["x", "y"]
++
++# r1 = 1 - 2x - y
++[[alphabet.letters]]
++name = "r1"
++expr = "(+ 1 (* -2 x) (- y))"
++
++# r2 = 3 + x - 2y
++[[alphabet.letters]]
++name = "r2"
++expr = "(+ 3 x (* -2 y))"
++
++# r3 = 1 - x - y
++[[alphabet.letters]]
++name = "r3"
++expr = "(+ 1 (- x) (- y))"
++
++# r4 = 2 + x - y
++[[alphabet.letters]]
++name = "r4"
++expr = "(+ 2 x (- y))"
++
++# r5 = 3 - 2x + 2y
++[[alphabet.letters]]
++name = "r5"
++expr = "(+ 3 (* -2 x) (* 2 y))"
++
++# r6 = 3 - x + y
++[[alphabet.letters]]
++name = "r6"
++expr = "(+ 3 (- x) y)"
++
++[constraints]
++first_entry = ["r1", "r2", "r6"]
++
++# Only allow the listed directed edges; all other adjacencies are forbidden.
++adjacency_mode = "allow"
++adjacency_pairs = [
++  ["r1","r2"],
++  ["r1","r3"],
++  ["r1","r4"],
++  ["r1","r5"],
++  ["r2","r3"],
++  ["r3","r1"],
++  ["r3","r4"],
++  ["r4","r6"],
++  ["r5","r3"],
++  ["r6","r4"],
++]
++
++[pairs]
++count_mode = "active_word_positions"
+diff --git "a/\350\256\241\345\210\222\345\256\236\351\252\214\344\271\246.md" "b/\350\256\241\345\210\222\345\256\236\351\252\214\344\271\246.md"
+new file mode 100644
+index 0000000..43ebf2f
+--- /dev/null
++++ "b/\350\256\241\345\210\222\345\256\236\351\252\214\344\271\246.md"
+@@ -0,0 +1,208 @@
++涓嬮潰缁欎綘涓€浠?*鈥滃疄楠岃鏍间功锛坋xperiment spec锛夋牸寮忔竻鍗曗€?*锛屼綘鍙互鐩存帴澶嶅埗鍒版柊瀵硅瘽閲屽綋浣滅粺涓€妯℃澘鐢ㄣ€傚畠鏄寜浣犺鍋氱殑涓ゆ潯绾匡紙鍩哄噯澶嶇幇 + filtration 鐩稿彉锛夋潵缁勭粐鐨勶紝骞朵笖瀹屽叏瀵归綈浣犱滑浠撳簱鐨勭‖绾︽潫锛?*纭畾鎬с€佹棤渚濊禆鐜€乻pace engine 鐨?BasisStats銆侀噸鍘嬫祴蹇呴』 `#[ignore]`** 绛夈€?+
++---
++
++# 瀹為獙瑙勬牸涔︽ā鏉匡紙寤鸿姣忎釜瀹為獙涓€浠斤級
++
++## 0) 瀹為獙鍏冧俊鎭?+
++* **Experiment ID**锛歚E###_<short_name>`
++* **鐩爣**锛氫竴鍙ヨ瘽锛堜綘瑕佽瘉鏄?璇佷吉浠€涔堬級
++* **鍋囪**锛欻0/H1锛堝彲閫夛級
++* **鐗堟湰/鎻愪氦**锛歡it commit hash
++* **杩愯妯″紡**锛歞ebug / release锛堝缓璁啓鏄庯級
++* **纭畾鎬у０鏄?*锛氭湰瀹為獙蹇呴』鍙鐜帮紙鍚岃緭鍏ュ悓閰嶇疆鈫掑悓杈撳嚭锛?+
++---
++
++## 1) 杈撳叆 Inputs
++
++### 1.1 Alphabet锛堝瓧姣嶈〃锛?+
++* **瀛楁瘝鏉ユ簮**锛堥€変竴椤规垨澶氶」锛夛細
++
++  * 鉁呭叕寮€/鏂囩尞瀛楁瘝琛紙hexagon/heptagon鈥︼級
++  * 鉁呴殢鏈哄瓧姣嶈〃锛堜綘鑷畾涔夌敓鎴愬櫒锛?+  * 鉁呬粠鐗╃悊/鍑犱綍瀵硅薄鐢熸垚锛坧labic銆丩andau singularities鈥︼級
++* **瀛楁瘝琛ㄨ揪鏂瑰紡**锛?+
++  * 姣忎釜 letter 蹇呴』鏄?`mpl-ir` 鐨?canonical `Expr`锛堝彲 eval锛屽彲 dlog锛?+* **alphabet 澶у皬**锛歚m = __`
++* **鍙橀噺闆嗗悎**锛歚Vars = {x,y,z,...}`锛坰pace engine 浼氱敤瀹冧滑鍋?wedge 绾︽潫锛?+* **锛堝彲閫夛級letter 鏍囩/閫氶亾鏄犲皠**锛?+
++  * `letter -> channel/type`锛堢敤浜?Steinmann/genealogical 杩欑鐗╃悊璇箟绾︽潫锛?+  * 濡傛灉娌¤涔夛紝鍏堢敤 鈥滈殢鏈?鑱氱被鏍囩鈥?鍗犱綅涔熻锛屼絾瑕佸啓娓呮
++
++### 1.2 Weight 鑼冨洿
++
++* 鐩爣 weight锛歚w = __`锛堟垨 `w 鈭?[w_min, w_max]`锛?+* 棰勪及鏈害鏉?word 鏁帮細`m^w`锛堢敤鏉ユ彁閱掕嚜宸变細涓嶄細鐐革級
++
++### 1.3 绾︽潫灞傦紙Filtration layers锛?+
++鎶婃瘡涓害鏉熷啓鎴?鈥滆瑷€绾︽潫鈥濓紙鍏佽鍝簺搴忓垪/杞Щ锛夛細
++
++* **Layer 0锛欼ntegrability锛堝繀鍋氾級**
++
++  * 鐢?`check_integrable_n` / `build_integrable_basis` 璐熻矗锛堢嚎鎬х害鏉燂級
++* **Layer 1锛欶irst-entry**
++
++  * 鍏佽鐨勯瀛楁瘝闆嗗悎 `F 鈯?Alphabet`
++* **Layer 2锛歅air adjacency锛堟湁鍚戣竟锛?*
++
++  * `AllowedPairs 鈯?Alphabet脳Alphabet`
++* **Layer 3锛歍riplets / 3-hyperedges**
++
++  * `AllowedTriplets 鈯?Alphabet^3`锛堝彲閫夛級
++* **Layer 4锛欸enealogical / compatibility锛堣法璺濈绂侀厤锛?*
++
++  * 瑙勫垯锛氬嚭鐜拌繃 A 鍚庯紝B 鍦ㄤ换鎰忚窛绂婚兘绂佹锛堥渶瑕佲€滃甫璁板繂鈥濈殑鑷姩鏈?鐘舵€佹満锛?+
++> 澶囨敞锛氫綘浠綋鍓?`WordConstraints` 鍙鐩?first-entry + adjacency锛涘鏋滆鍋?triplets/genealogical锛屽缓璁湪瀹為獙閲屾妸瀹冧滑鏄庣‘鎴愨€滆嚜鍔ㄦ満鐘舵€?+ 杞Щ鈥濇ā鍨嬶紙瀹炵幇缁嗚妭鍚庨潰鍐嶈惤锛夈€?+
++### 1.4 寮曟搸鍙傛暟锛堝繀椤诲啓娓咃級
++
++* **space engine**锛?+
++  * 浣跨敤锛歚build_integrable_basis` / `check_integrable_n` / `reduce_to_basis`
++  * **閲囨牱绛栫暐**锛氬浐瀹氭牱鏈〃锛堜粨搴撹姹傜‘瀹氭€ч噰鏍凤紱鏈夋晥鏍锋湰涓嶈冻瑕佽褰曪級
++  * **閿欒澶勭悊**锛歚InsufficientSamples` 濡備綍璁″叆锛堝け璐?璺宠繃/闄嶇骇锛?+* **棰勭畻/鍓灊**锛?+
++  * 鏈€澶у厑璁稿垪鏁?words 鏁帮紙濡傛灉浣犲仛杈规瀯閫犺竟鍓灊锛?+  * 濡傛灉娑夊強 symbol 灞曞紑锛歴huffle fuel锛堜綘浠凡鏈?fuel 浣撶郴涓庨檷绾?Unknown锛?+
++---
++
++## 2) 绋嬪簭 Procedure锛堟祦姘寸嚎姝ラ锛?+
++### Step A锛氭瀯閫?Alphabet
++
++* `Alphabet` 閲岃褰曪細
++
++  * letters锛坈anonical Expr锛?+  * 鍚嶇О/绱㈠紩锛圛D锛?+  * 纭繚杈撳嚭绋冲畾锛堟寜 canonical string 鎺掑簭锛?+
++### Step B锛氱紪璇戠害鏉?鈫?鈥滆瑷€鎺ュ彈鍣ㄢ€濓紙鑷姩鏈?绾︽潫鍣級
++
++* 杈撳嚭涓€涓粺涓€鎺ュ彛锛歚step(state, next_letter) -> Option<state'>`
++* 璁板綍锛?+
++  * 鐘舵€佹暟锛堝鏋滃彲绠楋級
++  * 杞Щ鏁帮紙绋€鐤忓害锛?+  * 鑻ョ姸鎬佺垎鐐革細鐢ㄤ粈涔堝帇缂╋紙鍙窡韪皯閲忓叧閿?channel/鍒嗙粍锛?+
++### Step C锛氭灇涓惧厑璁?words锛坵eight=w锛?+
++* 蹇呴』瀛楀吀搴?纭畾鎬ф灇涓撅紙space engine 涔熻姹傝繖涓€鐐癸級
++* 杈撳嚭锛?+
++  * `n_words_allowed`
++
++### Step D锛氭瀯閫犲彲绉┖闂?/ basis
++
++* 璋冪敤 `build_integrable_basis(alpha, constraints, w)`
++* 璁板綍 `BasisStats::one_line()`锛堣繖鏄綘浠姹傜殑绋冲畾璇婃柇杈撳嚭锛?+* 杈撳嚭锛?+
++  * `dim_w`锛堝彲绉瓙绌洪棿缁存暟锛?+  * `rank_w`
++  * `samples_used / envs_total`
++  * `constraints_insufficient_samples` 绛?+
++### Step E锛氫粠绌洪棿閲屾娊鈥滆瑷€缁撴瀯瀵硅薄鈥?+
++浣犺鐮旂┒鐨勨€滃浘/瓒呭浘/澶嶅舰鈥濈殑鎶藉彇瀹氫箟蹇呴』鍐欐竻锛堥潪甯搁噸瑕侊級锛?+
++* **Pair graph**锛堟湁鍚戯級锛?+
++  * 椤剁偣锛歭etters
++  * 杈癸細瀛樺湪鏌愪釜 basis symbol 鐨勬煇涓?word 涓嚭鐜扮浉閭?`(a,b)`锛堝彲璁℃暟/鍙潈閲嶏級
++* **Triplet hypergraph**锛堟湁鍚戜笁鍏冿級锛?+
++  * 涓夊厓锛氬瓨鍦ㄦ煇涓?word 涓嚭鐜拌繛缁?`(a,b,c)`
++* **璺ㄨ窛绂荤閰嶏紙genealogical锛?*锛?+
++  * 浠庣鍙?绌洪棿鎶藉彇鈥滃嚭鐜拌繃 A 鍚?B 鏄惁杩樿兘鍑虹幇鈥濈殑缁熻/鍒ゅ畾锛堝畾涔夎鍥哄畾锛?+* **瀵圭収瀵硅薄**锛?+
++  * 浠?pair graph 鏋勯€?clique complex 鐨?2-skeleton锛堢敤鏉ュ洖绛斺€渢riplets 鏄惁鐢?pairs 鍐冲畾鈥濓級
++
++### Step F锛氭嫇鎵?缁熻杈撳嚭
++
++鍏堜粠浣庣淮楠ㄦ灦寮€濮嬶紙閬垮厤 clique 鏋氫妇鐖嗙偢锛夛細
++
++* 0 缁达細杩為€氬垎閲忔暟锛堟垨寮鸿繛閫氬垎閲忥級
++* 1 缁达細鐜?鍙嶉缁撴瀯锛堢畝鍗?cycle 缁熻鎴栬繎浼?Betti鈧侊級
++* 2 缁达細涓夎褰?2-simplices 鏁帮紙鎴栧眬閮ㄨ仛绫荤郴鏁帮級
++* filtration 瀵规瘮锛氭瘡鍔犱竴灞傜害鏉燂紝浠ヤ笂鎸囨爣鎬庝箞鍙橈紙鈥滅浉鍙樷€濓級
++
++### Step G锛氬彲澶嶇幇鎬ф鏌ワ紙蹇呴』鏈夛級
++
++* 鍚岄厤缃噸澶嶈繍琛?N 娆★紝杈撳嚭 hash 蹇呴』涓€鑷达紙basis stats銆乸air/triplet 璁℃暟绛夛級
++* toy oracle锛堝鏋滅敤 `{x,y}`锛夌淮鏁版鏌ワ細`dim(w)=w+1`锛堜綘浠粨搴撲篃寮鸿皟瑕佷繚鐣欙級
++
++---
++
++## 3) 杈撳嚭 Outputs锛堝缓璁浐瀹氭垚鏂囦欢/琛ㄦ牸锛?+
++### 3.1 绌洪棿杈撳嚭
++
++* `basis_stats.txt`锛坥ne-line + 璇︾粏锛?+* `dim_vs_w.csv`锛坵, dim, rank, n_words_allowed, samples_used鈥︼級
++
++### 3.2 缁撴瀯杈撳嚭
++
++* `pairs.csv`锛歚a,b,count`锛堟湁鍚戯級
++* `triplets.csv`锛歚a,b,c,count`
++* `forbidden_pairs.csv`锛堣嫢鏈夛級/ `genealogical_rules.json`
++
++### 3.3 鎷撴墤/缁熻杈撳嚭
++
++* `topology_metrics.csv`锛氭瘡灞傜害鏉熶竴琛岋紙components, triangles, cycles_est, 鈥︼級
++* `filtration_summary.md`锛氬浘 + 瑙ｉ噴锛堜负鍐?paper 鍋氬噯澶囷級
++
++---
++
++## 4) 浠ｄ环浼扮畻 Cost锛堟瘡涓疄楠岄兘瑕佸啓锛?+
++* `m`銆乣w`銆乣n_words_allowed`
++* `BasisStats`锛堟渶鍏抽敭锛?+* 鑻ヨ窇涓嶅姩锛?+
++  * 鍝眰绾︽潫娌″姞瀵艰嚧鐖嗙偢锛?+  * 璁″垝鎬庝箞鍓灊锛堝厛鍔?first-entry/Steinmann/adjacency 鍐嶄笂 weight锛?+
++---
++
++## 5) 杩愯鍛戒护涓庡帇鍔涙祴璇曪紙闄勫綍锛?+
++* 鏃ュ父锛?+
++  * `cargo test --workspace`
++* 閲嶅帇娴嬶紙蹇界暐娴嬭瘯銆佸缓璁?release銆佸崟绾跨▼锛夛細
++
++  * `cargo test -p mpl-symbol --release -- --ignored --nocapture --test-threads=1`
++
++---
++
++# 涓ゆ潯涓荤嚎瀹為獙鐨勨€滄渶灏忓彲璺戞竻鍗曗€?+
++## 绾?1锛氬熀鍑嗗鐜帮紙鍙俊搴︼級
++
++* **杈撳叆**锛氬叕寮€ alphabet + 鍏紑 adjacency/first-entry锛堝鏋滄湁锛?+* **鐩爣**锛氬鐜板凡鐭?pair 绋€鐤忔€э紙渚嬪鈥渁llowed ordered pairs 鏁板緢灏戔€濓級锛屽苟瀵规瘮浣犳娊鍙栧櫒杈撳嚭
++* **杈撳嚭**锛歚pairs.csv` + 缁撴瀯缁熻
++
++## 绾?2锛欶iltration 鐩稿彉锛堜綘鐨勬牳蹇冧骇鍑猴級
++
++* **杈撳叆**锛氬悓涓€涓?alphabet
++* **灞傜骇**锛歩ntegrability 鈫?+first-entry 鈫?+Steinmann/ES 鈫?+cluster adjacency 鈫?+genealogical
++* **鐩爣**锛氭瘡鍔犱竴鏉″師鍒欙紝绌洪棿缁存暟涓庢嫇鎵戠粺璁″浣曞彉鍖栵紙鈥滅浉鍙樺浘鈥濓級
++* **杈撳嚭**锛歚dim_vs_w.csv` + `topology_metrics.csv` + `filtration_summary.md`
++
++---
++
++濡傛灉浣犳妸杩欎唤妯℃澘璐村埌鏂板璇濆紑澶达紝鐒跺悗鍐嶅憡璇夋垜浣犲噯澶囧厛浠?**hexagon 杩樻槸 heptagon**锛堟垨鍏堜粠灏?m 鐨勯殢鏈?ensemble锛夎捣璺戯紝鎴戝氨鑳界洿鎺ユ妸瀹冣€滃疄渚嬪寲鈥濇垚涓€浠藉叿浣撳疄楠岃鍒掞紙鍖呭惈鍙傛暟鑼冨洿銆佷細鐖嗙殑鐐广€佸厛鍋氬摢鍑犱釜 w銆佹瘡灞傜害鏉熸€庝箞缂栫爜鎴愯嚜鍔ㄦ満/鐘舵€佹満锛夈€?

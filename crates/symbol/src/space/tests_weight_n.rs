@@ -8,7 +8,7 @@ mod tests {
     use num_traits::Zero;
 
     use crate::error::SymbolError;
-    use crate::tensor::{Coeff, Symbol, Word};
+    use crate::{Coeff, Symbol, Word};
 
     use crate::space::{
         build_integrable_basis, check_integrable_n, reduce_to_basis, Alphabet, WordConstraints,
@@ -337,6 +337,7 @@ mod tests {
 
         let basis = build_integrable_basis(&alpha, &c, w).unwrap();
         print_stats(basis.stats());
+        assert_eq!(basis.stats().dim, w + 1);
         assert_eq!(basis.words.len(), 1usize << w);
         assert_eq!(basis.vectors.len(), w + 1);
 

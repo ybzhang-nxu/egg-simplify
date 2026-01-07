@@ -1,0 +1,47 @@
+# L3: Hexagon functions rational subset S_u^{rat} = {u,v,w,1-u,1-v,1-w}
+# Note: full hexagon alphabet includes y_u,y_v,y_w (square roots); this M1 pack keeps only the rational subset.
+
+[experiment]
+id = "L3_Hexagon_Su_rational_subset"
+title = "Hexagon rational subset: first-entry {u,v,w}, no adjacency constraint (baseline)"
+out_dir = "reports/m1/L3_Hexagon_Su_rational_subset"
+w_min = 1
+w_max = 6
+
+[alphabet]
+vars = ["u", "v", "w"]
+
+[[alphabet.letters]]
+name = "u"
+expr = "u"
+
+[[alphabet.letters]]
+name = "v"
+expr = "v"
+
+[[alphabet.letters]]
+name = "w"
+expr = "w"
+
+[[alphabet.letters]]
+name = "1-u"
+expr = "(+ 1 (- u))"
+
+[[alphabet.letters]]
+name = "1-v"
+expr = "(+ 1 (- v))"
+
+[[alphabet.letters]]
+name = "1-w"
+expr = "(+ 1 (- w))"
+
+[constraints]
+first_entry = ["u", "v", "w"]
+
+# No adjacency constraint:
+# - mode=allow with empty list would forbid everything, so we set mode=forbid with empty list (forbid nothing).
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[pairs]
+count_mode = "active_word_positions"

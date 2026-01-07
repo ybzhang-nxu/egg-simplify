@@ -6,7 +6,7 @@ use mpl_rewrite_symbol::{
     simplify_symbol_aware, FingerprintBudget, FingerprintCache, FingerprintConfig, GuardConfig,
     PenaltyConfig, SymbolContext, SymbolRewriteConfig,
 };
-use mpl_symbol::space::WordConstraints;
+use mpl_symbol::space::{check_integrable_n, WordConstraints};
 use mpl_symbol::{check_integrable, symbol};
 
 pub struct SimplifyOptions {
@@ -86,7 +86,17 @@ pub fn simplify_expr(input: &str, opts: &SimplifyOptions) -> Result<Expr, String
             if sb != sc {
                 return Ok(baseline);
             }
-            match check_integrable(&sc) {
+            let max_weight = sc
+                .terms()
+                .map(|(word, _coeff)| word.letters().len())
+                .max()
+                .unwrap_or(0);
+            let integrable = if max_weight <= 2 {
+                check_integrable(&sc)
+            } else {
+                check_integrable_n(&sc)
+            };
+            match integrable {
                 Ok(true) => Ok(candidate),
                 Ok(false) => Ok(baseline),
                 Err(_) => Ok(candidate),

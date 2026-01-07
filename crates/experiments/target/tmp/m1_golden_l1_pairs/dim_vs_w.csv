@@ -1,0 +1,7 @@
+weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error
+1,2,2,0,0,0,0,0,0,0,"x1,x2",0,0,ok,,
+2,4,3,1,5,1,5,5,0,0,"x1,x2",4,4,ok,,
+3,8,2,6,35,6,35,5,0,0,"x1,x2",2,1,ok,,
+4,16,2,14,110,14,110,5,0,0,"x1,x2",2,1,ok,,
+5,32,2,30,300,30,300,5,0,0,"x1,x2",2,1,ok,,
+6,64,2,62,760,62,760,5,0,0,"x1,x2",2,1,ok,,

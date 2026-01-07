@@ -1,0 +1,60 @@
+[meta]
+id = "R1_rand_affine_seed20260107"
+title = "Random affine letters + sparse directed adjacency (seed=20260107)"
+kind = "random"
+source = "Synthetic control dataset; fixed seed to ensure determinism and reproducibility."
+
+[weights]
+min = 1
+max = 12
+
+[alphabet]
+vars = ["x", "y"]
+
+# r1 = 1 - 2x - y
+[[alphabet.letters]]
+name = "r1"
+expr = "(+ 1 (* -2 x) (- y))"
+
+# r2 = 3 + x - 2y
+[[alphabet.letters]]
+name = "r2"
+expr = "(+ 3 x (* -2 y))"
+
+# r3 = 1 - x - y
+[[alphabet.letters]]
+name = "r3"
+expr = "(+ 1 (- x) (- y))"
+
+# r4 = 2 + x - y
+[[alphabet.letters]]
+name = "r4"
+expr = "(+ 2 x (- y))"
+
+# r5 = 3 - 2x + 2y
+[[alphabet.letters]]
+name = "r5"
+expr = "(+ 3 (* -2 x) (* 2 y))"
+
+# r6 = 3 - x + y
+[[alphabet.letters]]
+name = "r6"
+expr = "(+ 3 (- x) y)"
+
+[constraints.first_entry]
+allowed = ["r1", "r2", "r6"]
+
+[constraints.adjacency]
+mode = "allowed"
+pairs = [
+  # allow repeats (self-loops)
+  ["r1","r1"], ["r2","r2"], ["r3","r3"], ["r4","r4"], ["r5","r5"], ["r6","r6"],
+
+  # sparse directed edges
+  ["r1","r2"], ["r1","r3"], ["r1","r4"], ["r1","r5"],
+  ["r2","r3"],
+  ["r3","r1"], ["r3","r4"],
+  ["r4","r6"],
+  ["r5","r3"],
+  ["r6","r4"],
+]

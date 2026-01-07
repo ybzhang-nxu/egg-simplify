@@ -1,0 +1,52 @@
+[meta]
+id = "L1_A2_cluster"
+title = "Cluster algebra A2 (pentagon) cluster variables + cluster adjacency as pair constraint"
+kind = "literature"
+source = "Keller (A2 example / pentagon clusters)."
+
+[weights]
+min = 1
+max = 12
+
+[alphabet]
+vars = ["x1", "x2"]
+
+[[alphabet.letters]]
+name = "x1"
+expr = "x1"
+
+[[alphabet.letters]]
+name = "x2"
+expr = "x2"
+
+# x3 = (1 + x2) / x1
+[[alphabet.letters]]
+name = "x3"
+expr = "(/ (+ 1 x2) x1)"
+
+# x4 = (1 + x1 + x2) / (x1 x2)
+[[alphabet.letters]]
+name = "x4"
+expr = "(/ (+ 1 x1 x2) x1 x2)"
+
+# x5 = (1 + x1) / x2
+[[alphabet.letters]]
+name = "x5"
+expr = "(/ (+ 1 x1) x2)"
+
+[constraints.first_entry]
+allowed = ["x1", "x2"]
+
+[constraints.adjacency]
+mode = "allowed"
+pairs = [
+  # self-loops allowed (repeat letter)
+  ["x1","x1"], ["x2","x2"], ["x3","x3"], ["x4","x4"], ["x5","x5"],
+
+  # pentagon neighbor adjacency (bidirectional)
+  ["x1","x2"], ["x2","x1"],
+  ["x2","x3"], ["x3","x2"],
+  ["x3","x4"], ["x4","x3"],
+  ["x4","x5"], ["x5","x4"],
+  ["x5","x1"], ["x1","x5"],
+]

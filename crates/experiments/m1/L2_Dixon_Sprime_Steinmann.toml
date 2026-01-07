@@ -1,0 +1,60 @@
+[meta]
+id = "L2_Dixon_Sprime_Steinmann"
+title = "Dixon lecture S'={a,b,c,d,e,f} + Steinmann/ES forbidden adjacent pairs"
+kind = "literature"
+source = "Dixon (Mainz 2021 Lecture 2), S' alphabet and Steinmann adjacency constraints."
+
+[weights]
+min = 1
+max = 8
+
+[alphabet]
+vars = ["u", "v", "w"]
+
+# a = u / (v w)
+[[alphabet.letters]]
+name = "a"
+expr = "(/ u v w)"
+
+# b = v / (w u)
+[[alphabet.letters]]
+name = "b"
+expr = "(/ v w u)"
+
+# c = w / (u v)
+[[alphabet.letters]]
+name = "c"
+expr = "(/ w u v)"
+
+# d = (1-u) / u
+[[alphabet.letters]]
+name = "d"
+expr = "(/ (+ 1 (- u)) u)"
+
+# e = (1-v) / v
+[[alphabet.letters]]
+name = "e"
+expr = "(/ (+ 1 (- v)) v)"
+
+# f = (1-w) / w
+[[alphabet.letters]]
+name = "f"
+expr = "(/ (+ 1 (- w)) w)"
+
+[constraints.first_entry]
+# In Dixon's discussion, first entries can be u,v,w or equivalently a,b,c in S'.
+allowed = ["a", "b", "c"]
+
+[constraints.adjacency]
+mode = "forbidden"
+pairs = [
+  # (d,e)=0 etc (direction-sensitive, so include both)
+  ["d","e"], ["e","d"],
+  ["e","f"], ["f","e"],
+  ["f","d"], ["d","f"],
+
+  # (a,d)=0 etc
+  ["a","d"], ["d","a"],
+  ["b","e"], ["e","b"],
+  ["c","f"], ["f","c"],
+]

@@ -5,7 +5,7 @@ use num_traits::Zero;
 
 use crate::error::SymbolError;
 use crate::integrability_utils::{build_envs, collect_vars, dlog};
-use crate::tensor::Symbol;
+use crate::Symbol;
 
 pub fn check_integrable(sym: &Symbol) -> Result<bool, SymbolError> {
     let mut has_weight2 = false;

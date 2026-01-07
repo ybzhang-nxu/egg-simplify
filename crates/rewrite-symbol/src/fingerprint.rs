@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use mpl_ir::Expr;
 use mpl_symbol::space::{Alphabet, Basis, WordConstraints};
-use mpl_symbol::{Symbol, SymbolError, Word};
+use mpl_symbol::{ShuffleFuel, Symbol, SymbolError, Word};
 use num_rational::Rational64;
 use num_traits::Zero;
 
@@ -83,7 +83,8 @@ fn fingerprint_expr_uncached(
         .time_limit_ms
         .map(|ms| Instant::now() + Duration::from_millis(ms));
 
-    let symbol = match symbol_cached(expr, expr_key, cache) {
+    let mut symbol_fuel = ShuffleFuel::new(cfg.budget.fuel);
+    let symbol = match symbol_cached(expr, expr_key, cache, &mut symbol_fuel) {
         Ok(symbol) => symbol,
         Err(err) => {
             return Ok(Fingerprint::Unknown {
@@ -163,6 +164,7 @@ fn symbol_cached(
     expr: &Expr,
     expr_key: &ExprKey,
     cache: &FingerprintCache,
+    fuel: &mut ShuffleFuel,
 ) -> Result<Symbol, SymbolError> {
     let read_guard = match cache.symbol.read() {
         Ok(guard) => guard,
@@ -173,7 +175,7 @@ fn symbol_cached(
     }
     drop(read_guard);
 
-    let symbol = mpl_symbol::symbol(expr)?;
+    let symbol = mpl_symbol::symbol_with_fuel(expr, fuel)?;
     let mut write_guard = match cache.symbol.write() {
         Ok(guard) => guard,
         Err(poison) => poison.into_inner(),
@@ -409,6 +411,7 @@ fn map_symbol_error(err: SymbolError) -> UnknownReason {
         SymbolError::NotImplemented(_) => UnknownReason::SymbolNotImplemented,
         SymbolError::Eval(_) => UnknownReason::SymbolEval,
         SymbolError::InsufficientSamples => UnknownReason::InsufficientSamples,
+        SymbolError::FuelExhausted => UnknownReason::BudgetExhausted,
     }
 }
 

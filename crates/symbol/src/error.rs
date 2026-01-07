@@ -8,6 +8,8 @@ pub enum SymbolError {
     Eval(#[from] EvalError),
     #[error("insufficient valid sample points for integrability check")]
     InsufficientSamples,
+    #[error("fuel exhausted during shuffle expansion")]
+    FuelExhausted,
 }
 
 #[derive(Debug, Error)]

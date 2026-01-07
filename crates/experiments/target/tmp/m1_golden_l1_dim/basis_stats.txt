@@ -1,0 +1,6 @@
+w=1 ncols=2, dim=2, rank=0, rows_attempted=0, rows_inserted=0, samples_used=0, envs_total=0, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=0, avg_row_nnz=0 status=ok
+w=2 ncols=4, dim=3, rank=1, rows_attempted=5, rows_inserted=1, samples_used=5, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=4, avg_row_nnz=4 status=ok
+w=3 ncols=8, dim=2, rank=6, rows_attempted=35, rows_inserted=6, samples_used=35, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=4 ncols=16, dim=2, rank=14, rows_attempted=110, rows_inserted=14, samples_used=110, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=5 ncols=32, dim=2, rank=30, rows_attempted=300, rows_inserted=30, samples_used=300, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok
+w=6 ncols=64, dim=2, rank=62, rows_attempted=760, rows_inserted=62, samples_used=760, envs_total=5, rows_skipped_singular=0, constraints_insufficient_samples=0, vars=2, max_row_nnz=2, avg_row_nnz=1 status=ok

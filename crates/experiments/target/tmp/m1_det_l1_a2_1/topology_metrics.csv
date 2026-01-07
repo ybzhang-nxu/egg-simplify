@@ -1,0 +1,7 @@
+weight,n_vertices,n_edges,n_active_words,weakly_connected_components,strongly_connected_components,density_num,density_den,max_out_degree,avg_out_degree_num,avg_out_degree_den,status,error_code,error
+1,5,0,2,5,5,0,25,0,0,5,ok,,
+2,5,4,4,2,4,4,25,2,4,5,ok,,
+3,5,6,4,2,2,6,25,2,6,5,ok,,
+4,5,6,8,2,2,6,25,2,6,5,ok,,
+5,5,6,8,2,2,6,25,2,6,5,ok,,
+6,5,6,16,2,2,6,25,2,6,5,ok,,

@@ -1,0 +1,11 @@
+[package]
+name = "mpl-experiments"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+mpl-ir = { path = "../ir" }
+mpl-symbol = { path = "../symbol" }
+num-traits = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

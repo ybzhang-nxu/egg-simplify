@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 
 use mpl_ir::Expr;
 use num_traits::{One, Zero};
 
 use crate::error::SymbolError;
 use crate::integrability_utils::{build_envs, collect_vars, DlogCache};
-use crate::tensor::{Coeff, Symbol, Word};
+use crate::{Coeff, Symbol, Word};
 
 mod stats;
 pub use stats::BasisStats;
@@ -77,12 +78,39 @@ impl Basis {
     }
 }
 
+#[derive(Debug)]
+pub struct BasisBuildError {
+    pub err: SymbolError,
+    pub stats: BasisStats,
+}
+
+impl fmt::Display for BasisBuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (stats: {})", self.err, self.stats.one_line())
+    }
+}
+
+impl std::error::Error for BasisBuildError {}
+
 pub fn build_integrable_basis(
     alpha: &Alphabet,
     constraints: &WordConstraints,
     weight: usize,
 ) -> Result<Basis, SymbolError> {
-    validate_constraints(alpha, constraints)?;
+    build_integrable_basis_with_stats(alpha, constraints, weight).map_err(|err| err.err)
+}
+
+pub fn build_integrable_basis_with_stats(
+    alpha: &Alphabet,
+    constraints: &WordConstraints,
+    weight: usize,
+) -> Result<Basis, BasisBuildError> {
+    if let Err(err) = validate_constraints(alpha, constraints) {
+        return Err(BasisBuildError {
+            err,
+            stats: BasisStats::default(),
+        });
+    }
 
     let words = enumerate_words(alpha.letters.len(), constraints, weight);
     let ncols = words.len();
@@ -119,7 +147,10 @@ pub fn build_integrable_basis(
     }
 
     let envs = build_envs(&vars);
-    let cache = DlogCache::new(&letters, &vars, &envs)?;
+    let cache = DlogCache::new(&letters, &vars, &envs).map_err(|err| BasisBuildError {
+        err,
+        stats: stats.clone(),
+    })?;
     let mut pivot_rows: BTreeMap<usize, SparseRow> = BTreeMap::new();
     stats.envs_total = envs.len();
 
@@ -171,7 +202,10 @@ pub fn build_integrable_basis(
                     if valid < 2 {
                         stats.constraints_insufficient_samples += 1;
                         let _ = stats.constraints_insufficient_samples;
-                        return Err(SymbolError::InsufficientSamples);
+                        return Err(BasisBuildError {
+                            err: SymbolError::InsufficientSamples,
+                            stats,
+                        });
                     }
                 }
             }
