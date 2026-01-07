@@ -1,4 +1,4 @@
-﻿# mpl-simplifier (v0.1.5 node release)
+# mpl-simplifier (v0.1.6 node release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -6,7 +6,8 @@ expressions. It provides a canonical normal form (v0.1.1 baseline), a symbol
 layer for log/li2 with shuffle algebra for products/powers, general weight-n
 integrability and a space engine, an egg-based rewrite engine with a
 conservative symbol guard, plus an optional symbol-aware extractor backed by
-deterministic fingerprints and fuel-limited symbolization.
+deterministic fingerprints and fuel-limited symbolization, and a file-driven M1
+experiments runner.
 
 This project intentionally avoids branch-sensitive functional identities and
 full MPL/GPL reconstruction. It does not implement log/li2 identities or
@@ -14,7 +15,7 @@ function reconstruction; those are deferred to future milestones.
 
 ## Architecture & Crates
 Dependency DAG (no cycles, per AGENTS.md):
-`mpl-ir` <- {`mpl-symbol`, `mpl-rewrite`, `mpl-verify`}; `mpl-rewrite-symbol` <- {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`}; `mpl-simplify` -> {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`, `mpl-rewrite-symbol`}.
+`mpl-ir` <- {`mpl-symbol`, `mpl-rewrite`, `mpl-verify`}; `mpl-rewrite-symbol` <- {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`}; `mpl-experiments` -> {`mpl-ir`, `mpl-symbol`}; `mpl-simplify` -> {`mpl-ir`, `mpl-rewrite`, `mpl-symbol`, `mpl-rewrite-symbol`}.
 
 | Crate | Purpose | Key Modules / Public API | Depends On |
 | --- | --- | --- | --- |
@@ -23,6 +24,7 @@ Dependency DAG (no cycles, per AGENTS.md):
 | `mpl-rewrite` | egg language/rules/lowering/lifting + simplifier | `simplify_algebra`, `RewriteConfig`, `RewriteMode`, `RewriteError`, `lower_expr`, `lift_expr` (`crates/rewrite/src/*.rs`) | `mpl-ir`, `egg` |
 | `mpl-rewrite-symbol` | Symbol-aware rewrite pipeline + fingerprinting + deterministic extractor | `simplify_symbol_aware`, `SymbolContext`, `FingerprintConfig`, `PenaltyConfig` (`crates/rewrite-symbol/src/lib.rs`) | `mpl-ir`, `mpl-rewrite`, `mpl-symbol` |
 | `mpl-verify` | Exact rational eval + sample equivalence | `eval_rational`, `equiv_on_samples`, `EvalError` (`crates/verify/src/lib.rs`) | `mpl-ir` |
+| `mpl-experiments` | M1 experiments runner (spec parsing + deterministic outputs) | `load_spec`, `parse_spec_str`, `run_experiment`, `write_outputs` (`crates/experiments/src/*.rs`) | `mpl-ir`, `mpl-symbol` |
 | `mpl-simplify` | CLI entry point | Subcommands in `crates/cli/src/main.rs` | `mpl-ir`, `mpl-rewrite`, `mpl-symbol`, `mpl-rewrite-symbol` |
 
 See `docs/ARCHITECTURE.md` for a short architecture overview.
@@ -203,6 +205,7 @@ Tests:
   stress cases (run with `--ignored`).
 - `crates/symbol/tests/stress.rs`: ignored stress tests for shuffle/fuel and
   higher-weight integrability.
+- `crates/experiments/tests/m1_golden.rs`: M1 golden outputs (L1 A2 cluster).
 
 Toy oracle:
 - For alphabet `{x, y}` with no constraints, the integrable subspace dimension at
@@ -235,17 +238,17 @@ Benchmarks:
 Manual tools:
 - `cargo run -p mpl-rewrite-symbol --bin symbol_param_scan` writes
   `reports/phase2_symbol_scan.md` and `reports/phase2_symbol_scan.csv`.
+- `cargo run -p mpl-experiments -- run --spec crates/experiments/m1/L1_A2_cluster.toml`
+  writes M1 outputs under the spec's `out_dir`.
 
-## v0.1.5 Release Notes
-- Added shuffle algebra for symbol products/powers, enabling higher-weight
-  symbols for products like log-powers and li2/log mixes.
-- Added fuel-limited symbolization (`ShuffleFuel`, `symbol_with_fuel`) and
-  deterministic early aborts on fuel exhaustion.
-- Added a deconcatenation coproduct carrier (`Coproduct`) for Hopf workflows.
-- CLI guard now uses `check_integrable_n` for weight > 2 (weight-2 remains
-  `check_integrable`), preserving deterministic downgrade on errors.
-- Added ignored stress tests for shuffle fuel boundaries and weight-10
-  integrability, plus a weight-10 toy-oracle basis check.
+## v0.1.6 Release Notes
+- Added `mpl-experiments` M1 runner with TOML specs and deterministic outputs
+  (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`, `pairs_by_weight.csv`,
+  `topology_metrics.csv`) plus stable `status/error_code` columns.
+- Added L1 A2 golden regressions (dim/rank/pairs/topology) and determinism checks
+  for the M1 output contract.
+- Hardened M1 spec validation (duplicate letter names, unknown references, and
+  empty allow-lists are rejected deterministically).
 - Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release
   label for documentation and planning purposes.
 

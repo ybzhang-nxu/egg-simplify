@@ -1,12 +1,9 @@
-[meta]
+﻿[experiment]
 id = "L2_Dixon_Sprime_Steinmann"
 title = "Dixon lecture S'={a,b,c,d,e,f} + Steinmann/ES forbidden adjacent pairs"
-kind = "literature"
-source = "Dixon (Mainz 2021 Lecture 2), S' alphabet and Steinmann adjacency constraints."
-
-[weights]
-min = 1
-max = 8
+out_dir = "reports/m1/L2_Dixon_Sprime_Steinmann"
+w_min = 1
+w_max = 8
 
 [alphabet]
 vars = ["u", "v", "w"]
@@ -41,13 +38,11 @@ expr = "(/ (+ 1 (- v)) v)"
 name = "f"
 expr = "(/ (+ 1 (- w)) w)"
 
-[constraints.first_entry]
+[constraints]
 # In Dixon's discussion, first entries can be u,v,w or equivalently a,b,c in S'.
-allowed = ["a", "b", "c"]
-
-[constraints.adjacency]
-mode = "forbidden"
-pairs = [
+first_entry = ["a", "b", "c"]
+adjacency_mode = "forbid"
+adjacency_pairs = [
   # (d,e)=0 etc (direction-sensitive, so include both)
   ["d","e"], ["e","d"],
   ["e","f"], ["f","e"],
@@ -58,3 +53,6 @@ pairs = [
   ["b","e"], ["e","b"],
   ["c","f"], ["f","c"],
 ]
+
+[pairs]
+count_mode = "active_word_positions"

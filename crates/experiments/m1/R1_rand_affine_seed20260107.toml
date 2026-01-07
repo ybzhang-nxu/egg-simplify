@@ -1,12 +1,9 @@
-[meta]
+﻿[experiment]
 id = "R1_rand_affine_seed20260107"
 title = "Random affine letters + sparse directed adjacency (seed=20260107)"
-kind = "random"
-source = "Synthetic control dataset; fixed seed to ensure determinism and reproducibility."
-
-[weights]
-min = 1
-max = 12
+out_dir = "reports/m1/R1_rand_affine_seed20260107"
+w_min = 1
+w_max = 12
 
 [alphabet]
 vars = ["x", "y"]
@@ -41,12 +38,10 @@ expr = "(+ 3 (* -2 x) (* 2 y))"
 name = "r6"
 expr = "(+ 3 (- x) y)"
 
-[constraints.first_entry]
-allowed = ["r1", "r2", "r6"]
-
-[constraints.adjacency]
-mode = "allowed"
-pairs = [
+[constraints]
+first_entry = ["r1", "r2", "r6"]
+adjacency_mode = "allow"
+adjacency_pairs = [
   # allow repeats (self-loops)
   ["r1","r1"], ["r2","r2"], ["r3","r3"], ["r4","r4"], ["r5","r5"], ["r6","r6"],
 
@@ -58,3 +53,6 @@ pairs = [
   ["r5","r3"],
   ["r6","r4"],
 ]
+
+[pairs]
+count_mode = "active_word_positions"

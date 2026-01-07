@@ -1,12 +1,9 @@
-[meta]
+﻿[experiment]
 id = "L1_A2_cluster"
 title = "Cluster algebra A2 (pentagon) cluster variables + cluster adjacency as pair constraint"
-kind = "literature"
-source = "Keller (A2 example / pentagon clusters)."
-
-[weights]
-min = 1
-max = 12
+out_dir = "reports/m1/L1_A2_cluster"
+w_min = 1
+w_max = 12
 
 [alphabet]
 vars = ["x1", "x2"]
@@ -34,12 +31,10 @@ expr = "(/ (+ 1 x1 x2) x1 x2)"
 name = "x5"
 expr = "(/ (+ 1 x1) x2)"
 
-[constraints.first_entry]
-allowed = ["x1", "x2"]
-
-[constraints.adjacency]
-mode = "allowed"
-pairs = [
+[constraints]
+first_entry = ["x1", "x2"]
+adjacency_mode = "allow"
+adjacency_pairs = [
   # self-loops allowed (repeat letter)
   ["x1","x1"], ["x2","x2"], ["x3","x3"], ["x4","x4"], ["x5","x5"],
 
@@ -50,3 +45,6 @@ pairs = [
   ["x4","x5"], ["x5","x4"],
   ["x5","x1"], ["x1","x5"],
 ]
+
+[pairs]
+count_mode = "active_word_positions"

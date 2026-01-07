@@ -9,6 +9,7 @@ This workspace is a deterministic Rust simplifier with a strict dependency DAG.
 - `mpl-rewrite`: egg language, rewrite rules, lowering/lifting, extractor.
 - `mpl-rewrite-symbol`: symbol-aware rewrite pipeline, fingerprint cache, stable extractor tie.
 - `mpl-verify`: exact rational evaluation and sample-based equivalence.
+- `mpl-experiments`: M1 experiment runner and deterministic output writer.
 - `mpl-simplify`: CLI entry point.
 
 ## Dependency DAG (no cycles)
@@ -18,6 +19,7 @@ mpl-ir  <- mpl-symbol
 mpl-ir  <- mpl-rewrite
 mpl-ir  <- mpl-verify
 mpl-rewrite-symbol <- {mpl-ir, mpl-rewrite, mpl-symbol}
+mpl-experiments -> {mpl-ir, mpl-symbol}
 mpl-simplify -> {mpl-ir, mpl-rewrite, mpl-symbol, mpl-rewrite-symbol}
 ```
 
