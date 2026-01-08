@@ -1,5 +1,7 @@
 # L3: Hexagon functions rational subset S_u^{rat} = {u,v,w,1-u,1-v,1-w}
 # Note: full hexagon alphabet includes y_u,y_v,y_w (square roots); this M1 pack keeps only the rational subset.
+# Optional M2 additions: alphabet.letters[].channel, constraints.budget, constraints.automaton.acceptors (kgram/genealogical).
+# See templates/m2_template.toml for a full schema example.
 
 [experiment]
 id = "L3_Hexagon_Su_rational_subset"

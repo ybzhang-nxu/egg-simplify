@@ -1,0 +1,40 @@
+[experiment]
+id = "STRESS_gene_no_interleave_w12_budget_words50k"
+out_dir = "reports/m2/STRESS_gene_no_interleave_w12_budget_words50k"
+w_min = 12
+w_max = 12
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "a1"
+expr = "(+ 1 t)"
+channel = "A"
+
+[[alphabet.letters]]
+name = "a2"
+expr = "(+ 2 t)"
+channel = "A"
+
+[[alphabet.letters]]
+name = "b1"
+expr = "(+ 3 t)"
+channel = "B"
+
+[[alphabet.letters]]
+name = "b2"
+expr = "(+ 4 t)"
+channel = "B"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.automaton]
+acceptors = [
+  { kind = "genealogical", seen = "channel", rules = [{ if_seen = "A", forbid = ["B"] }] }
+]
+
+[constraints.budget]
+max_words = 50000

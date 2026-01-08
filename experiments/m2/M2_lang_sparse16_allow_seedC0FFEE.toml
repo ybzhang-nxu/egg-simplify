@@ -1,0 +1,97 @@
+[experiment]
+id = "M2_lang_sparse16_allow_seedC0FFEE"
+out_dir = "reports/m2/M2_lang_sparse16_allow_seedC0FFEE"
+w_min = 1
+w_max = 12
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "l00"
+expr = "t"
+
+[[alphabet.letters]]
+name = "l01"
+expr = "(+ 1 t)"
+
+[[alphabet.letters]]
+name = "l02"
+expr = "(+ 2 t)"
+
+[[alphabet.letters]]
+name = "l03"
+expr = "(+ 3 t)"
+
+[[alphabet.letters]]
+name = "l04"
+expr = "(+ 4 t)"
+
+[[alphabet.letters]]
+name = "l05"
+expr = "(+ 5 t)"
+
+[[alphabet.letters]]
+name = "l06"
+expr = "(+ 6 t)"
+
+[[alphabet.letters]]
+name = "l07"
+expr = "(+ 7 t)"
+
+[[alphabet.letters]]
+name = "l08"
+expr = "(+ 8 t)"
+
+[[alphabet.letters]]
+name = "l09"
+expr = "(+ 9 t)"
+
+[[alphabet.letters]]
+name = "l10"
+expr = "(+ 10 t)"
+
+[[alphabet.letters]]
+name = "l11"
+expr = "(+ 11 t)"
+
+[[alphabet.letters]]
+name = "l12"
+expr = "(+ 12 t)"
+
+[[alphabet.letters]]
+name = "l13"
+expr = "(+ 13 t)"
+
+[[alphabet.letters]]
+name = "l14"
+expr = "(+ 14 t)"
+
+[[alphabet.letters]]
+name = "l15"
+expr = "(+ 15 t)"
+
+[constraints]
+first_entry = ["l00", "l01", "l02", "l03", "l04"]
+adjacency_mode = "allow"
+adjacency_pairs = [
+  ["l00", "l05"], ["l00", "l09"], ["l00", "l12"],
+  ["l01", "l03"], ["l01", "l10"], ["l01", "l14"],
+  ["l02", "l07"], ["l02", "l11"], ["l02", "l15"],
+  ["l03", "l06"], ["l03", "l13"],
+  ["l04", "l08"], ["l04", "l12"],
+  ["l05", "l01"], ["l05", "l14"],
+  ["l06", "l02"], ["l06", "l09"],
+  ["l07", "l04"], ["l07", "l10"],
+  ["l08", "l00"], ["l08", "l11"],
+  ["l09", "l03"], ["l09", "l15"],
+  ["l10", "l05"], ["l10", "l12"],
+  ["l11", "l06"], ["l11", "l13"],
+  ["l12", "l07"], ["l12", "l14"],
+  ["l13", "l08"], ["l13", "l15"],
+  ["l14", "l09"], ["l15", "l10"]
+]
+
+[constraints.budget]
+max_words = 4000000
+max_transitions = 200000

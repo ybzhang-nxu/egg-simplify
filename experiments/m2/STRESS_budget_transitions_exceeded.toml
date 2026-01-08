@@ -1,0 +1,46 @@
+[experiment]
+id = "STRESS_budget_transitions_exceeded"
+out_dir = "reports/m2/STRESS_budget_transitions_exceeded"
+w_min = 6
+w_max = 6
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 t)"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 t)"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 t)"
+
+[[alphabet.letters]]
+name = "d"
+expr = "(+ 4 t)"
+
+[[alphabet.letters]]
+name = "e"
+expr = "(+ 5 t)"
+
+[[alphabet.letters]]
+name = "f"
+expr = "(+ 6 t)"
+
+[constraints]
+adjacency_mode = "allow"
+adjacency_pairs = [
+  ["a", "b"], ["a", "c"], ["a", "d"], ["a", "e"], ["a", "f"],
+  ["b", "a"], ["b", "c"], ["b", "d"], ["b", "e"], ["b", "f"],
+  ["c", "a"], ["c", "b"], ["c", "d"], ["c", "e"], ["c", "f"],
+  ["d", "a"], ["d", "b"], ["d", "c"], ["d", "e"], ["d", "f"],
+  ["e", "a"], ["e", "b"], ["e", "c"], ["e", "d"], ["e", "f"],
+  ["f", "a"], ["f", "b"], ["f", "c"], ["f", "d"], ["f", "e"]
+]
+
+[constraints.budget]
+max_transitions = 3

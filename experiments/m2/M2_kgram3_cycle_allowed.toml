@@ -1,0 +1,36 @@
+[experiment]
+id = "M2_kgram3_cycle_allowed"
+out_dir = "reports/m2/M2_kgram3_cycle_allowed"
+w_min = 3
+w_max = 10
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 t)"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 t)"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 t)"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "kgram"
+k = 3
+mode = "allowed"
+triplets = [["a", "b", "c"], ["b", "c", "a"], ["c", "a", "b"]]
+
+[constraints.budget]
+max_words = 1000000
+max_states = 50000
+max_transitions = 200000

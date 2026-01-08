@@ -7,11 +7,16 @@ mod tests {
     use num_rational::Rational64;
     use num_traits::Zero;
 
-    use crate::error::SymbolError;
+    use crate::error::{ConstraintBudgetKind, SymbolError};
     use crate::{Coeff, Symbol, Word};
 
+    use super::super::enumerate_words_with_acceptor;
     use crate::space::{
-        build_integrable_basis, check_integrable_n, reduce_to_basis, Alphabet, WordConstraints,
+        build_integrable_basis, build_integrable_basis_with_acceptor,
+        build_integrable_basis_with_acceptor_with_stats, build_integrable_basis_with_stats,
+        check_integrable_n, count_words_with_acceptor, reduce_to_basis, Alphabet, And,
+        ConstraintBudget, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode,
+        WordAcceptor, WordConstraints, WordConstraintsAcceptor,
     };
 
     static PRINT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -231,6 +236,240 @@ mod tests {
                 assert!(check_integrable_n(&s).unwrap());
             }
         }
+    }
+
+    #[test]
+    fn basis_acceptor_matches_constraints_xy_w1_to_w6() {
+        let alpha = toy_alphabet_xy();
+        let c = no_constraints();
+        let acceptor = WordConstraintsAcceptor::new(&c);
+
+        for w in 1..=6 {
+            let basis_constraints = build_integrable_basis(&alpha, &c, w).unwrap();
+            let basis_acceptor =
+                build_integrable_basis_with_acceptor(&alpha, &acceptor, w, None).unwrap();
+            assert_eq!(basis_constraints.words, basis_acceptor.words);
+            assert_eq!(basis_constraints.vectors, basis_acceptor.vectors);
+            assert_eq!(basis_acceptor.vectors.len(), w + 1);
+        }
+    }
+
+    #[test]
+    fn count_words_matches_enumerate_unconstrained_xy() {
+        let alpha = toy_alphabet_xy();
+        let c = no_constraints();
+        let acceptor = WordConstraintsAcceptor::new(&c);
+
+        for w in 0..=5 {
+            let words =
+                enumerate_words_with_acceptor(alpha.letters.len(), &acceptor, w, None).unwrap();
+            let count = count_words_with_acceptor(alpha.letters.len(), &acceptor, w, None).unwrap();
+            assert_eq!(count as usize, words.len());
+        }
+    }
+
+    #[test]
+    fn count_words_matches_enumerate_with_adjacency() {
+        let alpha = toy_alphabet_xy();
+        let mut allowed_pairs = vec![vec![false; 2]; 2];
+        allowed_pairs[0][1] = true;
+        allowed_pairs[1][0] = true;
+        let c = WordConstraints {
+            first_allowed: None,
+            allowed_pairs: Some(allowed_pairs),
+        };
+        let acceptor = WordConstraintsAcceptor::new(&c);
+
+        let words = enumerate_words_with_acceptor(alpha.letters.len(), &acceptor, 3, None).unwrap();
+        let count = count_words_with_acceptor(alpha.letters.len(), &acceptor, 3, None).unwrap();
+        assert_eq!(count as usize, words.len());
+    }
+
+    #[test]
+    fn kgram_acceptor_allows_specified_triplets() {
+        let acceptor =
+            KGramAcceptor::new(KGramMode::Allowed, vec![[0, 1, 2], [0, 2, 1], [1, 0, 2]]).unwrap();
+
+        let words = enumerate_words_with_acceptor(3, &acceptor, 3, None).unwrap();
+        let expected = vec![vec![0, 1, 2], vec![0, 2, 1], vec![1, 0, 2]];
+        assert_eq!(words, expected);
+
+        let count = count_words_with_acceptor(3, &acceptor, 3, None).unwrap();
+        assert_eq!(count as usize, words.len());
+    }
+
+    #[test]
+    fn kgram_acceptor_forbids_triplet() {
+        let acceptor = KGramAcceptor::new(KGramMode::Forbidden, vec![[0, 0, 0]]).unwrap();
+
+        let words = enumerate_words_with_acceptor(2, &acceptor, 3, None).unwrap();
+        let expected = vec![
+            vec![0, 0, 1],
+            vec![0, 1, 0],
+            vec![0, 1, 1],
+            vec![1, 0, 0],
+            vec![1, 0, 1],
+            vec![1, 1, 0],
+            vec![1, 1, 1],
+        ];
+        assert_eq!(words, expected);
+
+        let count = count_words_with_acceptor(2, &acceptor, 3, None).unwrap();
+        assert_eq!(count as usize, words.len());
+    }
+
+    #[test]
+    fn kgram_acceptor_empty_allowed_rejects_triplets() {
+        let acceptor = KGramAcceptor::new(KGramMode::Allowed, Vec::new()).unwrap();
+
+        let words_w2 = enumerate_words_with_acceptor(2, &acceptor, 2, None).unwrap();
+        assert_eq!(words_w2.len(), 4);
+
+        let words_w3 = enumerate_words_with_acceptor(2, &acceptor, 3, None).unwrap();
+        assert!(words_w3.is_empty());
+    }
+
+    #[test]
+    fn genealogical_acceptor_channel_forbids_after_seen() {
+        let rules = vec![GenealogicalRule {
+            if_seen: 0,
+            forbid: vec![1],
+        }];
+        let acceptor = GenealogicalAcceptor::new(vec![0, 1, 2], 3, rules).unwrap();
+
+        let words = enumerate_words_with_acceptor(3, &acceptor, 3, None).unwrap();
+        for word in &words {
+            let mut seen_a = false;
+            for &letter in word {
+                if letter == 0 {
+                    seen_a = true;
+                } else if seen_a && letter == 1 {
+                    panic!("found forbidden B after A in {:?}", word);
+                }
+            }
+        }
+
+        let count = count_words_with_acceptor(3, &acceptor, 3, None).unwrap();
+        assert_eq!(count as usize, words.len());
+    }
+
+    #[test]
+    fn genealogical_and_constraints_intersect() {
+        let rules = vec![GenealogicalRule {
+            if_seen: 0,
+            forbid: vec![1],
+        }];
+        let genealogical = GenealogicalAcceptor::new(vec![0, 1], 2, rules).unwrap();
+
+        let mut allowed_pairs = vec![vec![true; 2]; 2];
+        allowed_pairs[0][0] = false;
+        let constraints = WordConstraints {
+            first_allowed: None,
+            allowed_pairs: Some(allowed_pairs),
+        };
+        let acceptor = And::new(WordConstraintsAcceptor::new(&constraints), genealogical);
+
+        let words = enumerate_words_with_acceptor(2, &acceptor, 3, None).unwrap();
+        for word in &words {
+            for idx in 0..(word.len() - 1) {
+                assert!(
+                    !(word[idx] == 0 && word[idx + 1] == 0),
+                    "found forbidden adjacency in {:?}",
+                    word
+                );
+            }
+            let mut seen_a = false;
+            for &letter in word {
+                if letter == 0 {
+                    seen_a = true;
+                } else if seen_a && letter == 1 {
+                    panic!("found forbidden B after A in {:?}", word);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn genealogical_budget_exceeded_states() {
+        let rules = vec![GenealogicalRule {
+            if_seen: 0,
+            forbid: vec![1],
+        }];
+        let acceptor = GenealogicalAcceptor::new(vec![0, 1], 2, rules).unwrap();
+        let budget = ConstraintBudget {
+            max_states: Some(2),
+            ..Default::default()
+        };
+
+        let err = count_words_with_acceptor(2, &acceptor, 2, Some(&budget)).unwrap_err();
+        assert!(matches!(
+            err,
+            SymbolError::ConstraintBudgetExceeded(ConstraintBudgetKind::States)
+        ));
+    }
+
+    #[ignore]
+    #[test]
+    fn stress_genealogical_letter_mode_budget_trigger() {
+        let alpha_len = 6;
+        let mut letter_to_key = Vec::with_capacity(alpha_len);
+        for idx in 0..alpha_len {
+            letter_to_key.push(idx);
+        }
+        let rules = vec![GenealogicalRule {
+            if_seen: 0,
+            forbid: vec![1, 2, 3, 4, 5],
+        }];
+        let acceptor = GenealogicalAcceptor::new(letter_to_key, alpha_len, rules).unwrap();
+        let budget = ConstraintBudget {
+            max_states: Some(3),
+            ..Default::default()
+        };
+
+        let err = count_words_with_acceptor(alpha_len, &acceptor, 2, Some(&budget)).unwrap_err();
+        assert!(matches!(
+            err,
+            SymbolError::ConstraintBudgetExceeded(ConstraintBudgetKind::States)
+        ));
+    }
+
+    #[test]
+    fn basis_stats_acceptor_matches_constraints_xy_w1_to_w6() {
+        let alpha = toy_alphabet_xy();
+        let c = no_constraints();
+        let acceptor = WordConstraintsAcceptor::new(&c);
+
+        for w in 1..=6 {
+            let b1 = build_integrable_basis_with_stats(&alpha, &c, w).unwrap();
+            let b2 = build_integrable_basis_with_acceptor_with_stats(&alpha, &acceptor, w, None)
+                .unwrap();
+            assert_eq!(b1.stats().one_line(), b2.stats().one_line());
+        }
+    }
+
+    #[test]
+    fn and_acceptor_intersects_rules() {
+        struct EvenAcceptor;
+
+        impl WordAcceptor for EvenAcceptor {
+            type State = ();
+
+            fn start(&self) -> Self::State {}
+
+            fn step(&self, _state: &Self::State, next: usize) -> Option<Self::State> {
+                if next.is_multiple_of(2) {
+                    Some(())
+                } else {
+                    None
+                }
+            }
+        }
+
+        let alpha = toy_alphabet_xy();
+        let c = no_constraints();
+        let acceptor = And::new(WordConstraintsAcceptor::new(&c), EvenAcceptor);
+        let basis = build_integrable_basis_with_acceptor(&alpha, &acceptor, 2, None).unwrap();
+        assert_eq!(basis.words, vec![vec![0, 0]]);
     }
 
     #[test]

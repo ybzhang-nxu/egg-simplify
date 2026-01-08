@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 use mpl_ir::{parse_sexpr, Expr};
 use mpl_symbol::space::{
-    build_integrable_basis_with_stats, Alphabet, Basis, BasisStats, WordConstraints,
+    build_integrable_basis_with_acceptor_with_stats, count_words_with_acceptor, Alphabet, Basis,
+    BasisStats, ConstraintBudget, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode,
+    WordAcceptor, WordConstraints, WordConstraintsAcceptor,
 };
 use mpl_symbol::SymbolError;
 use num_traits::Zero;
@@ -46,6 +48,7 @@ struct SpecAlphabet {
 struct SpecLetter {
     name: String,
     expr: String,
+    channel: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +56,42 @@ struct SpecConstraints {
     first_entry: Option<Vec<String>>,
     adjacency_mode: Option<String>,
     adjacency_pairs: Option<Vec<[String; 2]>>,
+    budget: Option<SpecConstraintBudget>,
+    automaton: Option<SpecAutomaton>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpecConstraintBudget {
+    max_states: Option<usize>,
+    max_transitions: Option<usize>,
+    max_words: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpecAutomaton {
+    acceptors: Option<Vec<SpecAutomatonAcceptor>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SpecGenealogicalRule {
+    if_seen: String,
+    forbid: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind")]
+enum SpecAutomatonAcceptor {
+    #[serde(rename = "kgram")]
+    KGram {
+        k: usize,
+        mode: String,
+        triplets: Vec<[String; 3]>,
+    },
+    #[serde(rename = "genealogical")]
+    Genealogical {
+        seen: Option<String>,
+        rules: Vec<SpecGenealogicalRule>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -105,6 +144,7 @@ pub enum ErrorCode {
     Eval,
     InsufficientSamples,
     FuelExhausted,
+    ConstraintBudgetExceeded,
 }
 
 impl ErrorCode {
@@ -114,8 +154,15 @@ impl ErrorCode {
             Self::Eval => "Eval",
             Self::InsufficientSamples => "InsufficientSamples",
             Self::FuelExhausted => "FuelExhausted",
+            Self::ConstraintBudgetExceeded => "ConstraintBudgetExceeded",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutomatonAcceptorRef {
+    KGram(usize),
+    Genealogical(usize),
 }
 
 pub fn load_spec(path: &Path) -> Result<ExperimentConfig, ExperimentError> {
@@ -152,6 +199,7 @@ pub fn parse_spec_str(input: &str) -> Result<ExperimentConfig, ExperimentError> 
     let mut letters = Vec::with_capacity(spec.alphabet.letters.len());
     let mut names = Vec::with_capacity(spec.alphabet.letters.len());
     let mut name_to_idx: BTreeMap<String, usize> = BTreeMap::new();
+    let mut channels: Vec<Option<String>> = Vec::with_capacity(spec.alphabet.letters.len());
 
     for (idx, letter) in spec.alphabet.letters.iter().enumerate() {
         if name_to_idx.insert(letter.name.clone(), idx).is_some() {
@@ -165,6 +213,7 @@ pub fn parse_spec_str(input: &str) -> Result<ExperimentConfig, ExperimentError> 
         })?;
         letters.push(expr.normalize());
         names.push(letter.name.clone());
+        channels.push(letter.channel.clone());
     }
 
     let alphabet = Alphabet {
@@ -174,12 +223,19 @@ pub fn parse_spec_str(input: &str) -> Result<ExperimentConfig, ExperimentError> 
     };
 
     let constraints = build_constraints(&spec.constraints, &name_to_idx)?;
+    let constraint_budget = build_budget(&spec.constraints);
+    let (genealogical_acceptors, kgram_acceptors, automaton_acceptors) =
+        build_automaton_acceptors(&spec.constraints, &name_to_idx, &channels)?;
 
     Ok(ExperimentConfig {
         name: spec.experiment.id,
         out_dir: PathBuf::from(spec.experiment.out_dir),
         alphabet,
         constraints,
+        genealogical_acceptors,
+        kgram_acceptors,
+        automaton_acceptors,
+        constraint_budget,
         weight_min: spec.experiment.w_min,
         weight_max: spec.experiment.w_max,
         vars: spec.alphabet.vars,
@@ -192,6 +248,10 @@ pub struct ExperimentConfig {
     pub out_dir: PathBuf,
     pub alphabet: Alphabet,
     pub constraints: WordConstraints,
+    pub genealogical_acceptors: Vec<GenealogicalAcceptor>,
+    pub kgram_acceptors: Vec<KGramAcceptor>,
+    pub automaton_acceptors: Vec<AutomatonAcceptorRef>,
+    pub constraint_budget: ConstraintBudget,
     pub weight_min: usize,
     pub weight_max: usize,
     pub vars: Vec<String>,
@@ -208,6 +268,24 @@ pub struct ExperimentReport {
     pub summaries: Vec<WeightSummary>,
     pub pairs_total: BTreeMap<(usize, usize), u64>,
     pub pairs_by_weight: BTreeMap<usize, BTreeMap<(usize, usize), u64>>,
+    pub triplets_total: BTreeMap<(usize, usize, usize), u64>,
+    pub triplets_by_weight: BTreeMap<usize, BTreeMap<(usize, usize, usize), u64>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CountReport {
+    pub name: String,
+    pub weight_min: usize,
+    pub weight_max: usize,
+    pub summaries: Vec<CountSummary>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CountSummary {
+    pub weight: usize,
+    pub n_words_allowed: usize,
+    pub status: Status,
+    pub error_code: Option<ErrorCode>,
 }
 
 #[derive(Clone, Debug)]
@@ -221,7 +299,7 @@ pub struct WeightSummary {
     pub error_code: Option<ErrorCode>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TopologyMetrics {
     pub n_vertices: usize,
     pub n_edges: usize,
@@ -235,6 +313,117 @@ pub struct TopologyMetrics {
     pub avg_out_degree_den: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum AutomatonState {
+    KGram(<KGramAcceptor as WordAcceptor>::State),
+    Genealogical(<GenealogicalAcceptor as WordAcceptor>::State),
+}
+
+struct CompositeAcceptor<'a> {
+    base: WordConstraintsAcceptor<'a>,
+    order: &'a [AutomatonAcceptorRef],
+    kgrams: &'a [KGramAcceptor],
+    genealogical: &'a [GenealogicalAcceptor],
+}
+
+impl<'a> CompositeAcceptor<'a> {
+    fn new(
+        constraints: &'a WordConstraints,
+        order: &'a [AutomatonAcceptorRef],
+        kgrams: &'a [KGramAcceptor],
+        genealogical: &'a [GenealogicalAcceptor],
+    ) -> Self {
+        Self {
+            base: WordConstraintsAcceptor::new(constraints),
+            order,
+            kgrams,
+            genealogical,
+        }
+    }
+}
+
+impl WordAcceptor for CompositeAcceptor<'_> {
+    type State = (Option<usize>, Vec<AutomatonState>);
+
+    fn start(&self) -> Self::State {
+        let mut states = Vec::with_capacity(self.order.len());
+        for entry in self.order {
+            match *entry {
+                AutomatonAcceptorRef::KGram(idx) => {
+                    let acceptor = match self.kgrams.get(idx) {
+                        Some(acceptor) => acceptor,
+                        None => return (self.base.start(), Vec::new()),
+                    };
+                    states.push(AutomatonState::KGram(acceptor.start()));
+                }
+                AutomatonAcceptorRef::Genealogical(idx) => {
+                    let acceptor = match self.genealogical.get(idx) {
+                        Some(acceptor) => acceptor,
+                        None => return (self.base.start(), Vec::new()),
+                    };
+                    states.push(AutomatonState::Genealogical(acceptor.start()));
+                }
+            }
+        }
+        (self.base.start(), states)
+    }
+
+    fn step(&self, state: &Self::State, next: usize) -> Option<Self::State> {
+        let base = self.base.step(&state.0, next)?;
+        if state.1.len() != self.order.len() {
+            return None;
+        }
+        let mut states = Vec::with_capacity(self.order.len());
+        for (entry, sub_state) in self.order.iter().zip(state.1.iter()) {
+            let updated = match (entry, sub_state) {
+                (AutomatonAcceptorRef::KGram(idx), AutomatonState::KGram(inner)) => {
+                    let acceptor = self.kgrams.get(*idx)?;
+                    AutomatonState::KGram(acceptor.step(inner, next)?)
+                }
+                (AutomatonAcceptorRef::Genealogical(idx), AutomatonState::Genealogical(inner)) => {
+                    let acceptor = self.genealogical.get(*idx)?;
+                    AutomatonState::Genealogical(acceptor.step(inner, next)?)
+                }
+                _ => return None,
+            };
+            states.push(updated);
+        }
+        Some((base, states))
+    }
+
+    fn is_accepting(&self, state: &Self::State, depth: usize) -> bool {
+        if !self.base.is_accepting(&state.0, depth) {
+            return false;
+        }
+        if state.1.len() != self.order.len() {
+            return false;
+        }
+        for (entry, sub_state) in self.order.iter().zip(state.1.iter()) {
+            let ok = match (entry, sub_state) {
+                (AutomatonAcceptorRef::KGram(idx), AutomatonState::KGram(inner)) => {
+                    let acceptor = match self.kgrams.get(*idx) {
+                        Some(acceptor) => acceptor,
+                        None => return false,
+                    };
+                    acceptor.is_accepting(inner, depth)
+                }
+                (AutomatonAcceptorRef::Genealogical(idx), AutomatonState::Genealogical(inner)) => {
+                    let acceptor = match self.genealogical.get(*idx) {
+                        Some(acceptor) => acceptor,
+                        None => return false,
+                    };
+                    acceptor.is_accepting(inner, depth)
+                }
+                _ => return false,
+            };
+            if !ok {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, ExperimentError> {
     if cfg.weight_min > cfg.weight_max {
         return Err(ExperimentError::InvalidConfig(
@@ -244,6 +433,13 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
 
     let (alphabet, constraints) = normalize_inputs(&cfg.alphabet, &cfg.constraints);
     validate_constraints(&alphabet, &constraints)?;
+    validate_genealogical_acceptors(&alphabet, &cfg.genealogical_acceptors)?;
+    validate_kgram_acceptors(&alphabet, &cfg.kgram_acceptors)?;
+    validate_automaton_order(
+        &cfg.automaton_acceptors,
+        &cfg.kgram_acceptors,
+        &cfg.genealogical_acceptors,
+    )?;
     let vars = if cfg.vars.is_empty() {
         collect_vars_from_letters(&alphabet.letters)
     } else {
@@ -253,20 +449,57 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
     let mut summaries = Vec::new();
     let mut pairs_total: BTreeMap<(usize, usize), u64> = BTreeMap::new();
     let mut pairs_by_weight: BTreeMap<usize, BTreeMap<(usize, usize), u64>> = BTreeMap::new();
+    let mut triplets_total: BTreeMap<(usize, usize, usize), u64> = BTreeMap::new();
+    let mut triplets_by_weight: BTreeMap<usize, BTreeMap<(usize, usize, usize), u64>> =
+        BTreeMap::new();
     let alpha_len = alphabet.letters.len();
+    let acceptor = CompositeAcceptor::new(
+        &constraints,
+        &cfg.automaton_acceptors,
+        &cfg.kgram_acceptors,
+        &cfg.genealogical_acceptors,
+    );
+    let budget = cfg.constraint_budget;
 
     for weight in cfg.weight_min..=cfg.weight_max {
-        let n_words_allowed = count_allowed_words(alpha_len, &constraints, weight);
-        match build_integrable_basis_with_stats(&alphabet, &constraints, weight) {
+        let n_words_allowed =
+            match count_allowed_words_with_acceptor(alpha_len, &acceptor, weight, Some(&budget)) {
+                Ok(count) => count,
+                Err(err) => {
+                    let topology = compute_topology_metrics(alpha_len, &BTreeMap::new(), 0);
+                    let error_code = error_code_from_symbol(&err);
+                    summaries.push(WeightSummary {
+                        weight,
+                        stats: BasisStats::default(),
+                        n_words_allowed: 0,
+                        n_active_words: 0,
+                        topology,
+                        status: Status::Err,
+                        error_code: Some(error_code),
+                    });
+                    continue;
+                }
+            };
+        match build_integrable_basis_with_acceptor_with_stats(
+            &alphabet,
+            &acceptor,
+            weight,
+            Some(&budget),
+        ) {
             Ok(basis) => {
                 let stats = basis.stats().clone();
                 let active_cols = active_columns(&basis);
                 let pair_counts = pair_counts_from_words(&basis.words, &active_cols);
+                let triplet_counts = triplet_counts_from_words(&basis.words, &active_cols);
                 let topology = compute_topology_metrics(alpha_len, &pair_counts, active_cols.len());
                 for ((a, b), count) in &pair_counts {
                     *pairs_total.entry((*a, *b)).or_insert(0) += *count;
                 }
                 pairs_by_weight.insert(weight, pair_counts);
+                for ((a, b, c), count) in &triplet_counts {
+                    *triplets_total.entry((*a, *b, *c)).or_insert(0) += *count;
+                }
+                triplets_by_weight.insert(weight, triplet_counts);
                 summaries.push(WeightSummary {
                     weight,
                     stats,
@@ -304,6 +537,60 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
         summaries,
         pairs_total,
         pairs_by_weight,
+        triplets_total,
+        triplets_by_weight,
+    })
+}
+
+pub fn run_count_only(cfg: &ExperimentConfig) -> Result<CountReport, ExperimentError> {
+    if cfg.weight_min > cfg.weight_max {
+        return Err(ExperimentError::InvalidConfig(
+            "weight_min must be <= weight_max".to_string(),
+        ));
+    }
+
+    let (alphabet, constraints) = normalize_inputs(&cfg.alphabet, &cfg.constraints);
+    validate_constraints(&alphabet, &constraints)?;
+    validate_genealogical_acceptors(&alphabet, &cfg.genealogical_acceptors)?;
+    validate_kgram_acceptors(&alphabet, &cfg.kgram_acceptors)?;
+    validate_automaton_order(
+        &cfg.automaton_acceptors,
+        &cfg.kgram_acceptors,
+        &cfg.genealogical_acceptors,
+    )?;
+
+    let alpha_len = alphabet.letters.len();
+    let acceptor = CompositeAcceptor::new(
+        &constraints,
+        &cfg.automaton_acceptors,
+        &cfg.kgram_acceptors,
+        &cfg.genealogical_acceptors,
+    );
+    let budget = cfg.constraint_budget;
+
+    let mut summaries = Vec::new();
+    for weight in cfg.weight_min..=cfg.weight_max {
+        match count_allowed_words_with_acceptor(alpha_len, &acceptor, weight, Some(&budget)) {
+            Ok(count) => summaries.push(CountSummary {
+                weight,
+                n_words_allowed: count,
+                status: Status::Ok,
+                error_code: None,
+            }),
+            Err(err) => summaries.push(CountSummary {
+                weight,
+                n_words_allowed: 0,
+                status: Status::Err,
+                error_code: Some(error_code_from_symbol(&err)),
+            }),
+        }
+    }
+
+    Ok(CountReport {
+        name: cfg.name.clone(),
+        weight_min: cfg.weight_min,
+        weight_max: cfg.weight_max,
+        summaries,
     })
 }
 
@@ -316,10 +603,21 @@ pub fn write_outputs(report: &ExperimentReport, out_dir: &Path) -> Result<(), Ex
         out_dir.join("pairs_by_weight.csv"),
         render_pairs_by_weight(report),
     )?;
+    fs::write(out_dir.join("triplets.csv"), render_triplets(report))?;
+    fs::write(
+        out_dir.join("triplets_by_weight.csv"),
+        render_triplets_by_weight(report),
+    )?;
     fs::write(
         out_dir.join("topology_metrics.csv"),
         render_topology_metrics(report),
     )?;
+    Ok(())
+}
+
+pub fn write_count_only(report: &CountReport, out_dir: &Path) -> Result<(), ExperimentError> {
+    fs::create_dir_all(out_dir)?;
+    fs::write(out_dir.join("counts_only.csv"), render_count_only(report))?;
     Ok(())
 }
 
@@ -382,6 +680,26 @@ pub fn render_dim_vs_w(report: &ExperimentReport) -> String {
     out
 }
 
+pub fn render_count_only(report: &CountReport) -> String {
+    let mut out = String::new();
+    out.push_str("weight,n_words_allowed,status,error_code,error\n");
+    for summary in &report.summaries {
+        let status_field = summary.status.as_str();
+        let error_code = summary.error_code.map(|code| code.as_str()).unwrap_or("");
+        let error_code_field = escape_csv_field(error_code);
+        let error_field = error_code_field.clone();
+        out.push_str(&format!(
+            "{},{},{},{},{}\n",
+            summary.weight,
+            summary.n_words_allowed,
+            escape_csv_field(status_field),
+            error_code_field,
+            error_field
+        ));
+    }
+    out
+}
+
 pub fn render_pairs(report: &ExperimentReport) -> String {
     let mut out = String::new();
     out.push_str("a,b,count\n");
@@ -413,6 +731,49 @@ pub fn render_pairs_by_weight(report: &ExperimentReport) -> String {
                 "{},{},{},{}\n",
                 weight,
                 escape_csv_field(&left),
+                escape_csv_field(&right),
+                count
+            ));
+        }
+    }
+    out
+}
+
+pub fn render_triplets(report: &ExperimentReport) -> String {
+    let mut out = String::new();
+    out.push_str("a,b,c,count\n");
+
+    let names = letter_display_names(&report.alphabet);
+    for (&(a, b, c), count) in &report.triplets_total {
+        let left = names.get(a).cloned().unwrap_or_else(|| a.to_string());
+        let mid = names.get(b).cloned().unwrap_or_else(|| b.to_string());
+        let right = names.get(c).cloned().unwrap_or_else(|| c.to_string());
+        out.push_str(&format!(
+            "{},{},{},{}\n",
+            escape_csv_field(&left),
+            escape_csv_field(&mid),
+            escape_csv_field(&right),
+            count
+        ));
+    }
+    out
+}
+
+pub fn render_triplets_by_weight(report: &ExperimentReport) -> String {
+    let mut out = String::new();
+    out.push_str("weight,a,b,c,count\n");
+
+    let names = letter_display_names(&report.alphabet);
+    for (weight, triplets) in &report.triplets_by_weight {
+        for (&(a, b, c), count) in triplets {
+            let left = names.get(a).cloned().unwrap_or_else(|| a.to_string());
+            let mid = names.get(b).cloned().unwrap_or_else(|| b.to_string());
+            let right = names.get(c).cloned().unwrap_or_else(|| c.to_string());
+            out.push_str(&format!(
+                "{},{},{},{},{}\n",
+                weight,
+                escape_csv_field(&left),
+                escape_csv_field(&mid),
                 escape_csv_field(&right),
                 count
             ));
@@ -621,6 +982,225 @@ fn build_constraints(
     })
 }
 
+fn build_budget(spec: &SpecConstraints) -> ConstraintBudget {
+    let mut budget = ConstraintBudget::default();
+    if let Some(spec_budget) = &spec.budget {
+        budget.max_states = spec_budget.max_states;
+        budget.max_transitions = spec_budget.max_transitions;
+        budget.max_words = spec_budget.max_words;
+    }
+    budget
+}
+
+type AutomatonBuild = (
+    Vec<GenealogicalAcceptor>,
+    Vec<KGramAcceptor>,
+    Vec<AutomatonAcceptorRef>,
+);
+
+fn build_automaton_acceptors(
+    spec: &SpecConstraints,
+    name_to_idx: &BTreeMap<String, usize>,
+    letter_channels: &[Option<String>],
+) -> Result<AutomatonBuild, ExperimentError> {
+    const INVALID_SPEC_MISSING_CHANNEL: &str = "InvalidSpecMissingChannel";
+    const INVALID_SPEC_UNKNOWN_MODE: &str = "InvalidSpecUnknownGenealogicalMode";
+    const INVALID_SPEC_UNKNOWN_CHANNEL: &str = "InvalidSpecUnknownChannel";
+    const INVALID_SPEC_UNKNOWN_LETTER: &str = "InvalidSpecUnknownLetter";
+    const INVALID_SPEC_DUPLICATE_RULE: &str = "InvalidSpecDuplicateRule";
+    const INVALID_SPEC_DUPLICATE_FORBID: &str = "InvalidSpecDuplicateForbid";
+    const INVALID_SPEC_EMPTY_ALLOW_LIST: &str = "InvalidSpecEmptyAllowList";
+
+    let Some(automaton) = &spec.automaton else {
+        return Ok((Vec::new(), Vec::new(), Vec::new()));
+    };
+
+    let mut genealogical = Vec::new();
+    let mut kgrams = Vec::new();
+    let mut order = Vec::new();
+    let mut channel_cache: Option<(BTreeMap<String, usize>, Vec<usize>)> = None;
+
+    let acceptors = automaton.acceptors.as_deref().unwrap_or(&[]);
+    for acceptor in acceptors {
+        match acceptor {
+            SpecAutomatonAcceptor::Genealogical { seen, rules } => {
+                let mode = seen.as_deref().unwrap_or("channel");
+                let (letter_to_key, key_count, name_map) = match mode {
+                    "channel" => {
+                        if channel_cache.is_none() {
+                            let mut channel_names = BTreeSet::new();
+                            for channel in letter_channels {
+                                let Some(name) = channel else {
+                                    return Err(ExperimentError::InvalidConfig(format!(
+                                        "{INVALID_SPEC_MISSING_CHANNEL}: missing channel on letter"
+                                    )));
+                                };
+                                if name.is_empty() {
+                                    return Err(ExperimentError::InvalidConfig(format!(
+                                        "{INVALID_SPEC_MISSING_CHANNEL}: empty channel on letter"
+                                    )));
+                                }
+                                channel_names.insert(name.clone());
+                            }
+
+                            let mut channel_map = BTreeMap::new();
+                            for (idx, name) in channel_names.into_iter().enumerate() {
+                                channel_map.insert(name, idx);
+                            }
+
+                            let mut letter_to_channel = Vec::with_capacity(letter_channels.len());
+                            for channel in letter_channels {
+                                let Some(name) = channel.as_ref() else {
+                                    return Err(ExperimentError::InvalidConfig(format!(
+                                        "{INVALID_SPEC_MISSING_CHANNEL}: missing channel on letter"
+                                    )));
+                                };
+                                let idx = channel_map.get(name).ok_or_else(|| {
+                                    ExperimentError::InvalidConfig(format!(
+                                        "{INVALID_SPEC_UNKNOWN_CHANNEL}: {name}"
+                                    ))
+                                })?;
+                                letter_to_channel.push(*idx);
+                            }
+                            channel_cache = Some((channel_map, letter_to_channel));
+                        }
+                        let (channel_map, letter_to_channel) = match channel_cache.as_ref() {
+                            Some(value) => value,
+                            None => {
+                                return Err(ExperimentError::InvalidConfig(format!(
+                                    "{INVALID_SPEC_MISSING_CHANNEL}: channel map missing"
+                                )))
+                            }
+                        };
+                        (letter_to_channel.clone(), channel_map.len(), channel_map)
+                    }
+                    "letter" => {
+                        let mut letter_to_key = Vec::with_capacity(name_to_idx.len());
+                        for idx in 0..name_to_idx.len() {
+                            letter_to_key.push(idx);
+                        }
+                        (letter_to_key, name_to_idx.len(), name_to_idx)
+                    }
+                    other => {
+                        return Err(ExperimentError::InvalidConfig(format!(
+                            "{INVALID_SPEC_UNKNOWN_MODE}: {other}"
+                        )))
+                    }
+                };
+
+                if rules.is_empty() {
+                    continue;
+                }
+
+                let mut mapped_rules = Vec::with_capacity(rules.len());
+                let mut seen_rules = BTreeSet::new();
+                for rule in rules {
+                    let if_seen = name_map.get(&rule.if_seen).copied().ok_or_else(|| {
+                        ExperimentError::InvalidConfig(format!(
+                            "{}: {}",
+                            if mode == "channel" {
+                                INVALID_SPEC_UNKNOWN_CHANNEL
+                            } else {
+                                INVALID_SPEC_UNKNOWN_LETTER
+                            },
+                            rule.if_seen
+                        ))
+                    })?;
+                    let mut forbid = Vec::with_capacity(rule.forbid.len());
+                    for name in &rule.forbid {
+                        let idx = name_map.get(name).copied().ok_or_else(|| {
+                            ExperimentError::InvalidConfig(format!(
+                                "{}: {}",
+                                if mode == "channel" {
+                                    INVALID_SPEC_UNKNOWN_CHANNEL
+                                } else {
+                                    INVALID_SPEC_UNKNOWN_LETTER
+                                },
+                                name
+                            ))
+                        })?;
+                        forbid.push(idx);
+                    }
+                    forbid.sort_unstable();
+                    for window in forbid.windows(2) {
+                        if window[0] == window[1] {
+                            return Err(ExperimentError::InvalidConfig(format!(
+                                "{INVALID_SPEC_DUPLICATE_FORBID}: {}",
+                                rule.if_seen
+                            )));
+                        }
+                    }
+                    if !seen_rules.insert((if_seen, forbid.clone())) {
+                        return Err(ExperimentError::InvalidConfig(format!(
+                            "{INVALID_SPEC_DUPLICATE_RULE}: {}",
+                            rule.if_seen
+                        )));
+                    }
+                    mapped_rules.push(GenealogicalRule { if_seen, forbid });
+                }
+
+                let acceptor = GenealogicalAcceptor::new(letter_to_key, key_count, mapped_rules)
+                    .map_err(|err| {
+                        ExperimentError::InvalidConfig(format!("genealogical error: {err}"))
+                    })?;
+                genealogical.push(acceptor);
+                let idx = genealogical.len() - 1;
+                order.push(AutomatonAcceptorRef::Genealogical(idx));
+            }
+            SpecAutomatonAcceptor::KGram { k, mode, triplets } => {
+                if *k != 3 {
+                    return Err(ExperimentError::InvalidConfig(format!(
+                        "kgram acceptor requires k=3 (got {k})"
+                    )));
+                }
+                let mode = match mode.as_str() {
+                    "allowed" => KGramMode::Allowed,
+                    "forbidden" => KGramMode::Forbidden,
+                    other => {
+                        return Err(ExperimentError::InvalidConfig(format!(
+                            "unknown kgram mode: {other}"
+                        )))
+                    }
+                };
+                if mode == KGramMode::Allowed && triplets.is_empty() {
+                    return Err(ExperimentError::InvalidConfig(format!(
+                        "{INVALID_SPEC_EMPTY_ALLOW_LIST}: kgram mode=allowed requires non-empty triplets"
+                    )));
+                }
+                let mut ids = Vec::with_capacity(triplets.len());
+                for triplet in triplets {
+                    let a_name = &triplet[0];
+                    let b_name = &triplet[1];
+                    let c_name = &triplet[2];
+                    let a = name_to_idx.get(a_name).ok_or_else(|| {
+                        ExperimentError::InvalidConfig(format!(
+                            "kgram triplet references unknown letter: {a_name}"
+                        ))
+                    })?;
+                    let b = name_to_idx.get(b_name).ok_or_else(|| {
+                        ExperimentError::InvalidConfig(format!(
+                            "kgram triplet references unknown letter: {b_name}"
+                        ))
+                    })?;
+                    let c = name_to_idx.get(c_name).ok_or_else(|| {
+                        ExperimentError::InvalidConfig(format!(
+                            "kgram triplet references unknown letter: {c_name}"
+                        ))
+                    })?;
+                    ids.push([*a, *b, *c]);
+                }
+                let acceptor = KGramAcceptor::new(mode, ids).map_err(|err| {
+                    ExperimentError::InvalidConfig(format!("kgram acceptor error: {err}"))
+                })?;
+                kgrams.push(acceptor);
+                let idx = kgrams.len() - 1;
+                order.push(AutomatonAcceptorRef::KGram(idx));
+            }
+        }
+    }
+    Ok((genealogical, kgrams, order))
+}
+
 fn validate_constraints(
     alphabet: &Alphabet,
     constraints: &WordConstraints,
@@ -638,6 +1218,69 @@ fn validate_constraints(
             return Err(ExperimentError::InvalidConfig(
                 "allowed_pairs adjacency matrix mismatch".to_string(),
             ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_genealogical_acceptors(
+    alphabet: &Alphabet,
+    acceptors: &[GenealogicalAcceptor],
+) -> Result<(), ExperimentError> {
+    let size = alphabet.letters.len();
+    for acceptor in acceptors {
+        if acceptor.letter_count() != size {
+            return Err(ExperimentError::InvalidConfig(
+                "genealogical acceptor letter mapping mismatch".to_string(),
+            ));
+        }
+        if acceptor.key_count() == 0 && size > 0 {
+            return Err(ExperimentError::InvalidConfig(
+                "genealogical acceptor has zero keys".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_automaton_order(
+    order: &[AutomatonAcceptorRef],
+    kgrams: &[KGramAcceptor],
+    genealogical: &[GenealogicalAcceptor],
+) -> Result<(), ExperimentError> {
+    for entry in order {
+        match *entry {
+            AutomatonAcceptorRef::KGram(idx) => {
+                if idx >= kgrams.len() {
+                    return Err(ExperimentError::InvalidConfig(
+                        "automaton order references missing kgram acceptor".to_string(),
+                    ));
+                }
+            }
+            AutomatonAcceptorRef::Genealogical(idx) => {
+                if idx >= genealogical.len() {
+                    return Err(ExperimentError::InvalidConfig(
+                        "automaton order references missing genealogical acceptor".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_kgram_acceptors(
+    alphabet: &Alphabet,
+    acceptors: &[KGramAcceptor],
+) -> Result<(), ExperimentError> {
+    let size = alphabet.letters.len();
+    for acceptor in acceptors {
+        for triplet in acceptor.triplets() {
+            if triplet.iter().any(|&idx| idx >= size) {
+                return Err(ExperimentError::InvalidConfig(
+                    "kgram triplet index out of range".to_string(),
+                ));
+            }
         }
     }
     Ok(())
@@ -689,46 +1332,43 @@ fn pair_counts_from_words(
     counts
 }
 
-fn count_allowed_words(alpha_len: usize, constraints: &WordConstraints, weight: usize) -> usize {
-    if weight == 0 {
-        return 1;
-    }
-    if alpha_len == 0 {
-        return 0;
-    }
-    let sentinel = alpha_len;
-    let mut memo = vec![vec![None; alpha_len + 1]; weight + 1];
-
-    fn rec(
-        alpha_len: usize,
-        constraints: &WordConstraints,
-        weight: usize,
-        pos: usize,
-        prev_idx: usize,
-        memo: &mut [Vec<Option<usize>>],
-    ) -> usize {
-        if pos == weight {
-            return 1;
-        }
-        if let Some(value) = memo[pos][prev_idx] {
-            return value;
-        }
-        let prev = if prev_idx == alpha_len {
-            None
-        } else {
-            Some(prev_idx)
+fn triplet_counts_from_words(
+    words: &[Vec<usize>],
+    active_cols: &[usize],
+) -> BTreeMap<(usize, usize, usize), u64> {
+    // Count definition: sum over active words of all consecutive triplets (w-2 per word).
+    let mut counts = BTreeMap::new();
+    for &col in active_cols {
+        let word = match words.get(col) {
+            Some(word) => word,
+            None => continue,
         };
-        let mut total = 0;
-        for next in 0..alpha_len {
-            if constraints.allow_step(pos, prev, next) {
-                total += rec(alpha_len, constraints, weight, pos + 1, next, memo);
-            }
+        if word.len() < 3 {
+            continue;
         }
-        memo[pos][prev_idx] = Some(total);
-        total
+        for idx in 0..(word.len() - 2) {
+            let a = word[idx];
+            let b = word[idx + 1];
+            let c = word[idx + 2];
+            *counts.entry((a, b, c)).or_insert(0) += 1;
+        }
     }
+    counts
+}
 
-    rec(alpha_len, constraints, weight, 0, sentinel, &mut memo)
+fn count_allowed_words_with_acceptor<A: WordAcceptor>(
+    alpha_len: usize,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<usize, SymbolError> {
+    let count = count_words_with_acceptor(alpha_len, acceptor, weight, budget)?;
+    if count > (usize::MAX as u64) {
+        return Err(SymbolError::NotImplemented(
+            "word count exceeds usize".to_string(),
+        ));
+    }
+    Ok(count as usize)
 }
 
 fn compute_topology_metrics(
@@ -737,7 +1377,7 @@ fn compute_topology_metrics(
     n_active_words: usize,
 ) -> TopologyMetrics {
     let mut edges = Vec::new();
-    for (&(a, b), _count) in pair_counts {
+    for &(a, b) in pair_counts.keys() {
         if a >= n_vertices || b >= n_vertices {
             continue;
         }
@@ -899,6 +1539,7 @@ fn error_code_from_symbol(err: &SymbolError) -> ErrorCode {
         SymbolError::Eval(_) => ErrorCode::Eval,
         SymbolError::InsufficientSamples => ErrorCode::InsufficientSamples,
         SymbolError::FuelExhausted => ErrorCode::FuelExhausted,
+        SymbolError::ConstraintBudgetExceeded(_) => ErrorCode::ConstraintBudgetExceeded,
     }
 }
 
@@ -941,4 +1582,52 @@ fn escape_csv_field(value: &str) -> String {
     }
     let escaped = value.replace('"', "\"\"");
     format!("\"{escaped}\"")
+}
+
+#[cfg(test)]
+mod acceptor_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn load_l1_a2_spec() -> ExperimentConfig {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("m1")
+            .join("L1_A2_cluster.toml");
+        load_spec(&path).expect("load L1_A2_cluster.toml")
+    }
+
+    #[test]
+    fn l1_a2_acceptor_matches_runner_outputs() {
+        let mut cfg = load_l1_a2_spec();
+        cfg.weight_min = 3;
+        cfg.weight_max = 3;
+        let report = run_experiment(&cfg).expect("run experiment");
+        let acceptor = WordConstraintsAcceptor::new(&cfg.constraints);
+        let budget = cfg.constraint_budget;
+
+        let summary = report.summaries.first().expect("summary");
+        let weight = summary.weight;
+        let basis = build_integrable_basis_with_acceptor_with_stats(
+            &cfg.alphabet,
+            &acceptor,
+            weight,
+            Some(&budget),
+        )
+        .expect("basis");
+        assert_eq!(basis.words.len(), summary.n_words_allowed);
+        assert_eq!(basis.stats().one_line(), summary.stats.one_line());
+
+        let active_cols = active_columns(&basis);
+        let pair_counts = pair_counts_from_words(&basis.words, &active_cols);
+        let topology =
+            compute_topology_metrics(cfg.alphabet.letters.len(), &pair_counts, active_cols.len());
+        let expected_pairs = report
+            .pairs_by_weight
+            .get(&weight)
+            .cloned()
+            .unwrap_or_default();
+
+        assert_eq!(pair_counts, expected_pairs);
+        assert_eq!(topology, summary.topology);
+    }
 }

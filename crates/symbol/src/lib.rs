@@ -9,7 +9,7 @@ pub mod space;
 mod tensor;
 mod word;
 
-pub use error::{EvalError, SymbolError};
+pub use error::{ConstraintBudgetKind, EvalError, SymbolError};
 pub use hopf::Coproduct;
 pub use integrability::check_integrable;
 pub use rules::{symbol, symbol_with_fuel};

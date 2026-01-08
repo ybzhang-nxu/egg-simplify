@@ -1,4 +1,6 @@
-﻿[experiment]
+﻿# Optional M2 additions: alphabet.letters[].channel, constraints.budget, constraints.automaton.acceptors (kgram/genealogical).
+# See templates/m2_template.toml for a full schema example.
+[experiment]
 id = "L3_Hexagon_Su_rational_subset"
 title = "Hexagon functions: rational subset of S_u = {u,v,w,1-u,1-v,1-w}"
 out_dir = "reports/m1/L3_Hexagon_Su_rational_subset"
@@ -40,3 +42,4 @@ adjacency_pairs = []
 
 [pairs]
 count_mode = "active_word_positions"
+

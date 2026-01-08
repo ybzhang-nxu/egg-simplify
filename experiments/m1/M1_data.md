@@ -10,9 +10,10 @@ This directory provides **4 experiment inputs** (TOML) that can be fed directly 
   * `dim_vs_w.csv`
   * `pairs.csv`
   * `pairs_by_weight.csv`
+  * `triplets.csv` / `triplets_by_weight.csv` (additive in M2; M1 outputs unchanged)
   * `topology_metrics.csv`
 
-> Note: M1 includes only **first-entry + adjacency**. Steinmann/ES, triplets, genealogical, etc. are **M2+**.
+> Note: M1 includes only **first-entry + adjacency**. Steinmann/ES, triplets, genealogical, etc. are **M2+** and optional.
 
 ---
 
@@ -47,6 +48,7 @@ Each `*.toml` follows the same minimal schema:
 
   * `name`: stable name (used in output CSV `a,b`)
   * `expr`: mpl-ir s-expression string (will be parsed + normalized)
+  * `channel`: optional; required only when genealogical `seen = "channel"`
 
 ### `[constraints]` (Step B)
 
@@ -56,6 +58,15 @@ Each `*.toml` follows the same minimal schema:
 
   * mode=`allow`: only these pairs are allowed; all others are forbidden
   * mode=`forbid`: these pairs are forbidden; all others are allowed
+
+### Optional M2 additions (additive)
+
+`[constraints.budget]`:
+* `max_states`, `max_transitions`, `max_words` (all optional)
+
+`[constraints.automaton.acceptors]` tagged entries:
+* `kind = "kgram"` with `k = 3`, `mode = "allowed" | "forbidden"`, `triplets = [[a,b,c], ...]`
+* `kind = "genealogical"` with `seen = "channel" | "letter"`, `rules = [{ if_seen = "...", forbid = ["..."] }, ...]`
 
 ### `[pairs]` (Step E definition pinned in config; M1 default)
 

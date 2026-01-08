@@ -1,0 +1,20 @@
+[experiment]
+id = "M2_toy_xy_forbid_xy"
+out_dir = "reports/m2/M2_toy_xy_forbid_xy"
+w_min = 1
+w_max = 12
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "x"
+expr = "x"
+
+[[alphabet.letters]]
+name = "y"
+expr = "y"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = [["x", "y"]]

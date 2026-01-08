@@ -1,0 +1,53 @@
+# M2 experiment template (additive over M1)
+
+[experiment]
+id = "Example_M2"
+title = "Example M2 spec with kgram + genealogical constraints"
+out_dir = "reports/m2/Example_M2"
+w_min = 1
+w_max = 4
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "x"
+channel = "A"
+
+[[alphabet.letters]]
+name = "b"
+expr = "y"
+channel = "B"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(* x y)"
+channel = "C"
+
+[constraints]
+first_entry = ["a", "b"]
+adjacency_mode = "forbid" # "allow" | "forbid"
+adjacency_pairs = [["b", "a"]]
+
+[constraints.budget]
+max_states = 1000
+max_transitions = 5000
+max_words = 100000
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "kgram"
+k = 3
+mode = "allowed" # "allowed" | "forbidden"
+triplets = [["a", "b", "c"], ["b", "c", "a"]]
+
+[[constraints.automaton.acceptors]]
+kind = "genealogical"
+seen = "channel" # "channel" | "letter"
+rules = [
+  { if_seen = "A", forbid = ["B", "C"] },
+]
+
+[pairs]
+count_mode = "active_word_positions"

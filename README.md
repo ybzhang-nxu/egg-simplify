@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.1.6 node release)
+# mpl-simplifier (v0.1.7 node release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -91,9 +91,13 @@ The general weight-n space engine lives under `mpl_symbol::space`.
 Core API:
 - `Alphabet`: normalized letters + names with a deterministic canonical-string map.
 - `WordConstraints`: first-letter and adjacency constraints.
+- `WordAcceptor`: DFA-style word filtering (adapters preserve M1 constraints).
+- `KGramAcceptor` (k=3): allowed/forbidden triplet constraints.
+- `GenealogicalAcceptor`: channel/letter-level "after seeing X, forbid Y later".
 - `Basis`: word columns + nullspace vectors with a free-variable convention.
 - `BasisStats`: standardized diagnostics for basis construction.
 - `build_integrable_basis(alpha, constraints, weight) -> Result<Basis, SymbolError>`
+- `build_integrable_basis_with_acceptor(alpha, acceptor, weight, budget)`
 - `reduce_to_basis(sym, basis, alpha) -> Result<(Vec<Coeff>, Symbol), SymbolError>`
 - `check_integrable_n(sym) -> Result<bool, SymbolError>`
 - `Basis::stats()` exposes `BasisStats` for deterministic diagnostics.
@@ -239,12 +243,36 @@ Manual tools:
 - `cargo run -p mpl-rewrite-symbol --bin symbol_param_scan` writes
   `reports/phase2_symbol_scan.md` and `reports/phase2_symbol_scan.csv`.
 - `cargo run -p mpl-experiments -- run --spec crates/experiments/m1/L1_A2_cluster.toml`
-  writes M1 outputs under the spec's `out_dir`.
+  writes M1 outputs (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`,
+  `pairs_by_weight.csv`, `triplets.csv`, `triplets_by_weight.csv`,
+  `topology_metrics.csv`) under the spec's `out_dir`.
+- `cargo run -p mpl-experiments -- count --spec experiments/m2/M2_gene_channel_no_interleave_count_w12.toml`
+  writes `counts_only.csv` to the spec `out_dir`.
+- Experiments spec: k-gram `mode = "allowed"` requires non-empty `triplets`
+  (parse error includes `InvalidSpecEmptyAllowList`).
+- Experiments spec: budgets are opt-in via `[constraints.budget]` with
+  `max_states`, `max_transitions`, `max_words`.
+- Experiments spec: acceptors are listed under `[constraints.automaton.acceptors]`
+  with `kind = "kgram"` or `kind = "genealogical"`.
+- Experiments spec: genealogical constraints default to channel-level tracking;
+  `[[alphabet.letters]]` may declare `channel`, required when `seen = "channel"`.
+- See `docs/experiments_format_m2.md` for the TOML schema and outputs.
+- See `docs/performance_bottlenecks.md` for known scale limits.
+
+## v0.1.7 Release Notes
+- Added M2 experiment spec documentation (`docs/experiments_format_m2.md`) and
+  an M2 spec suite under `experiments/m2`.
+- Added triplet outputs (`triplets.csv`, `triplets_by_weight.csv`) to experiment
+  outputs (additive; M1 contracts unchanged).
+- Added acceptor-based k-gram and genealogical constraints and a count-only
+  runner (`mpl-experiments count --spec ...`) for large weights.
+- Documented known performance bottlenecks at ~50k columns.
 
 ## v0.1.6 Release Notes
 - Added `mpl-experiments` M1 runner with TOML specs and deterministic outputs
   (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`, `pairs_by_weight.csv`,
-  `topology_metrics.csv`) plus stable `status/error_code` columns.
+  `triplets.csv`, `triplets_by_weight.csv`, `topology_metrics.csv`) plus stable
+  `status/error_code` columns.
 - Added L1 A2 golden regressions (dim/rank/pairs/topology) and determinism checks
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and

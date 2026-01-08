@@ -4,11 +4,16 @@ use std::fmt;
 use mpl_ir::Expr;
 use num_traits::{One, Zero};
 
-use crate::error::SymbolError;
+use crate::error::{ConstraintBudgetKind, SymbolError};
 use crate::integrability_utils::{build_envs, collect_vars, DlogCache};
 use crate::{Coeff, Symbol, Word};
 
+mod acceptor;
 mod stats;
+pub use acceptor::{
+    And, ConstraintBudget, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode,
+    WordAcceptor, WordConstraintsAcceptor,
+};
 pub use stats::BasisStats;
 
 #[derive(Clone, Debug)]
@@ -100,6 +105,7 @@ pub fn build_integrable_basis(
     build_integrable_basis_with_stats(alpha, constraints, weight).map_err(|err| err.err)
 }
 
+#[allow(clippy::result_large_err)]
 pub fn build_integrable_basis_with_stats(
     alpha: &Alphabet,
     constraints: &WordConstraints,
@@ -112,7 +118,32 @@ pub fn build_integrable_basis_with_stats(
         });
     }
 
-    let words = enumerate_words(alpha.letters.len(), constraints, weight);
+    let acceptor = WordConstraintsAcceptor::new(constraints);
+    build_integrable_basis_with_acceptor_with_stats(alpha, &acceptor, weight, None)
+}
+
+pub fn build_integrable_basis_with_acceptor<A: WordAcceptor>(
+    alpha: &Alphabet,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<Basis, SymbolError> {
+    build_integrable_basis_with_acceptor_with_stats(alpha, acceptor, weight, budget)
+        .map_err(|err| err.err)
+}
+
+#[allow(clippy::result_large_err)]
+pub fn build_integrable_basis_with_acceptor_with_stats<A: WordAcceptor>(
+    alpha: &Alphabet,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<Basis, BasisBuildError> {
+    let words = enumerate_words_with_acceptor(alpha.letters.len(), acceptor, weight, budget)
+        .map_err(|err| BasisBuildError {
+            err,
+            stats: BasisStats::default(),
+        })?;
     let ncols = words.len();
     let letters = normalized_letters(alpha);
     let vars = collect_vars_from_letters(&letters);
@@ -471,59 +502,225 @@ fn map_terms_to_ids(
     Ok(term_ids)
 }
 
-fn enumerate_words(
-    alpha_len: usize,
-    constraints: &WordConstraints,
-    weight: usize,
-) -> Vec<Vec<usize>> {
-    let mut out = Vec::new();
-    if weight == 0 {
-        out.push(Vec::new());
-        return out;
-    }
+struct AcceptorGraph<S> {
+    states: Vec<S>,
+    transitions: Vec<Vec<Option<usize>>>,
+    start_state: usize,
+}
 
+pub fn count_words_with_acceptor<A: WordAcceptor>(
+    alpha_len: usize,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<u64, SymbolError> {
+    let graph = build_acceptor_graph(acceptor, alpha_len, weight, budget)?;
+    let max_words = budget.and_then(|value| value.max_words);
+    count_words_with_graph(&graph, acceptor, weight, max_words)
+}
+
+fn enumerate_words_with_acceptor<A: WordAcceptor>(
+    alpha_len: usize,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<Vec<Vec<usize>>, SymbolError> {
+    let graph = build_acceptor_graph(acceptor, alpha_len, weight, budget)?;
+    let max_words = budget.and_then(|value| value.max_words);
+    let _ = count_words_with_graph(&graph, acceptor, weight, max_words)?;
+    let mut out = Vec::new();
     let mut current = Vec::with_capacity(weight);
     enumerate_words_rec(
-        alpha_len,
-        constraints,
+        &graph,
+        acceptor,
         weight,
         0,
-        None,
+        graph.start_state,
         &mut current,
         &mut out,
     );
-    out
+    Ok(out)
 }
 
-fn enumerate_words_rec(
-    alpha_len: usize,
-    constraints: &WordConstraints,
+fn enumerate_words_rec<A: WordAcceptor>(
+    graph: &AcceptorGraph<A::State>,
+    acceptor: &A,
     weight: usize,
-    pos: usize,
-    prev: Option<usize>,
+    depth: usize,
+    state_id: usize,
     current: &mut Vec<usize>,
     out: &mut Vec<Vec<usize>>,
 ) {
-    if pos == weight {
-        out.push(current.clone());
+    if depth == weight {
+        if acceptor.is_accepting(&graph.states[state_id], depth) {
+            out.push(current.clone());
+        }
         return;
     }
 
-    for next in 0..alpha_len {
-        if constraints.allow_step(pos, prev, next) {
-            current.push(next);
-            enumerate_words_rec(
-                alpha_len,
-                constraints,
-                weight,
-                pos + 1,
-                Some(next),
-                current,
-                out,
-            );
+    for (next_letter, next_state) in graph.transitions[state_id].iter().enumerate() {
+        if let Some(next_id) = next_state {
+            current.push(next_letter);
+            enumerate_words_rec(graph, acceptor, weight, depth + 1, *next_id, current, out);
             current.pop();
         }
     }
+}
+
+fn build_acceptor_graph<A: WordAcceptor>(
+    acceptor: &A,
+    alpha_len: usize,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<AcceptorGraph<A::State>, SymbolError> {
+    let max_states = budget.and_then(|value| value.max_states);
+    let max_transitions = budget.and_then(|value| value.max_transitions);
+
+    let start_state = acceptor.start();
+    let mut seen: BTreeSet<A::State> = BTreeSet::new();
+    let mut frontier: BTreeSet<A::State> = BTreeSet::new();
+    seen.insert(start_state.clone());
+    frontier.insert(start_state.clone());
+
+    if let Some(limit) = max_states {
+        if seen.len() > limit {
+            return Err(SymbolError::ConstraintBudgetExceeded(
+                ConstraintBudgetKind::States,
+            ));
+        }
+    }
+
+    for _depth in 0..weight {
+        if frontier.is_empty() {
+            break;
+        }
+        let mut next_frontier = BTreeSet::new();
+        for state in &frontier {
+            for next in 0..alpha_len {
+                if let Some(next_state) = acceptor.step(state, next) {
+                    if seen.contains(&next_state) {
+                        continue;
+                    }
+                    seen.insert(next_state.clone());
+                    if let Some(limit) = max_states {
+                        if seen.len() > limit {
+                            return Err(SymbolError::ConstraintBudgetExceeded(
+                                ConstraintBudgetKind::States,
+                            ));
+                        }
+                    }
+                    next_frontier.insert(next_state);
+                }
+            }
+        }
+        frontier = next_frontier;
+    }
+
+    let mut state_ids = BTreeMap::new();
+    let mut states = Vec::with_capacity(seen.len());
+    for (idx, state) in seen.into_iter().enumerate() {
+        state_ids.insert(state.clone(), idx);
+        states.push(state);
+    }
+    let start_state = match state_ids.get(&start_state) {
+        Some(id) => *id,
+        None => {
+            return Err(SymbolError::NotImplemented(
+                "acceptor start state missing".to_string(),
+            ))
+        }
+    };
+
+    let mut transitions = Vec::with_capacity(states.len());
+    let mut transition_count: usize = 0;
+    for state in &states {
+        let mut row = Vec::with_capacity(alpha_len);
+        for next in 0..alpha_len {
+            let next_state = acceptor.step(state, next);
+            if let Some(next_state) = next_state {
+                if let Some(next_id) = state_ids.get(&next_state) {
+                    row.push(Some(*next_id));
+                    transition_count += 1;
+                    if let Some(limit) = max_transitions {
+                        if transition_count > limit {
+                            return Err(SymbolError::ConstraintBudgetExceeded(
+                                ConstraintBudgetKind::Transitions,
+                            ));
+                        }
+                    }
+                } else {
+                    row.push(None);
+                }
+            } else {
+                row.push(None);
+            }
+        }
+        transitions.push(row);
+    }
+
+    Ok(AcceptorGraph {
+        states,
+        transitions,
+        start_state,
+    })
+}
+
+fn count_words_with_graph<A: WordAcceptor>(
+    graph: &AcceptorGraph<A::State>,
+    acceptor: &A,
+    weight: usize,
+    max_words: Option<u64>,
+) -> Result<u64, SymbolError> {
+    if graph.states.is_empty() {
+        return Ok(0);
+    }
+
+    if weight == 0 {
+        let start = &graph.states[graph.start_state];
+        return Ok(if acceptor.is_accepting(start, 0) {
+            1
+        } else {
+            0
+        });
+    }
+
+    let n_states = graph.states.len();
+    let mut current = vec![0u64; n_states];
+    current[graph.start_state] = 1;
+
+    for _depth in 0..weight {
+        let mut next = vec![0u64; n_states];
+        for (state_id, count) in current.iter().enumerate() {
+            if *count == 0 {
+                continue;
+            }
+            for next_id in graph.transitions[state_id].iter().flatten() {
+                let updated = next[*next_id].saturating_add(*count);
+                next[*next_id] = updated;
+            }
+        }
+        current = next;
+    }
+
+    let mut total = 0u64;
+    for (state_id, count) in current.iter().enumerate() {
+        if *count == 0 {
+            continue;
+        }
+        if !acceptor.is_accepting(&graph.states[state_id], weight) {
+            continue;
+        }
+        total = total.saturating_add(*count);
+        if let Some(limit) = max_words {
+            if total > limit {
+                return Err(SymbolError::ConstraintBudgetExceeded(
+                    ConstraintBudgetKind::Words,
+                ));
+            }
+        }
+    }
+
+    Ok(total)
 }
 
 fn build_contexts(words: &[Vec<usize>], k: usize) -> BTreeMap<Vec<usize>, Vec<usize>> {

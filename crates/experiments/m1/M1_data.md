@@ -13,11 +13,12 @@ The runner reads the spec and produces (per dataset):
 - `dim_vs_w.csv`
 - `pairs.csv` (aggregated across weights)
 - `pairs_by_weight.csv` (per weight)
+- `triplets.csv` / `triplets_by_weight.csv` (additive in M2; M1 outputs unchanged)
 - `topology_metrics.csv`
 
 Scope: M1 uses only `Alphabet` + `WordConstraints` (first-entry + adjacency)
 and builds integrable bases via `build_integrable_basis`. Triplets / genealogical
-/ automata constraints belong to M2+.
+/ automata constraints belong to M2+, and the additional fields are optional.
 
 ---
 
@@ -63,6 +64,7 @@ vars = ["x", "y", "z"]
 [[alphabet.letters]]
 name = "a"
 expr = "(/ x (+ 1 y))"   # mpl-ir s-expression string; parsed + normalized
+channel = "A"            # optional; required when genealogical seen="channel"
 ```
 
 ### `[constraints]`
@@ -76,6 +78,28 @@ adjacency_pairs = [["a","b"], ["b","a"]]
 Semantics:
 - `adjacency_mode = "allow"`: only listed `(a,b)` pairs are allowed; all others are forbidden.
 - `adjacency_mode = "forbid"`: listed `(a,b)` pairs are forbidden; all others are allowed.
+
+Optional additions (M2, additive; M1 still valid):
+```toml
+[constraints.budget]
+max_states = 1000
+max_transitions = 5000
+max_words = 100000
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "kgram"
+k = 3
+mode = "allowed" # "allowed" | "forbidden"
+triplets = [["a","b","c"], ["b","c","a"]]
+
+[[constraints.automaton.acceptors]]
+kind = "genealogical"
+seen = "channel" # "channel" | "letter"
+rules = [
+  { if_seen = "A", forbid = ["B", "C"] },
+]
+```
 
 ### `[pairs]`
 ```toml

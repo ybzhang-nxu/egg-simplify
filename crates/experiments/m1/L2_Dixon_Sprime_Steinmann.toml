@@ -1,4 +1,6 @@
-﻿[experiment]
+﻿# Optional M2 additions: alphabet.letters[].channel, constraints.budget, constraints.automaton.acceptors (kgram/genealogical).
+# See templates/m2_template.toml for a full schema example.
+[experiment]
 id = "L2_Dixon_Sprime_Steinmann"
 title = "Dixon lecture S'={a,b,c,d,e,f} + Steinmann/ES forbidden adjacent pairs"
 out_dir = "reports/m1/L2_Dixon_Sprime_Steinmann"
@@ -56,3 +58,4 @@ adjacency_pairs = [
 
 [pairs]
 count_mode = "active_word_positions"
+

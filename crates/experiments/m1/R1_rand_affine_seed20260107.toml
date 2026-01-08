@@ -1,4 +1,6 @@
-﻿[experiment]
+﻿# Optional M2 additions: alphabet.letters[].channel, constraints.budget, constraints.automaton.acceptors (kgram/genealogical).
+# See templates/m2_template.toml for a full schema example.
+[experiment]
 id = "R1_rand_affine_seed20260107"
 title = "Random affine letters + sparse directed adjacency (seed=20260107)"
 out_dir = "reports/m1/R1_rand_affine_seed20260107"
@@ -56,3 +58,4 @@ adjacency_pairs = [
 
 [pairs]
 count_mode = "active_word_positions"
+

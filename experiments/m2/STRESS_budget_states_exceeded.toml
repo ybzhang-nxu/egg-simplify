@@ -1,0 +1,31 @@
+[experiment]
+id = "STRESS_budget_states_exceeded"
+out_dir = "reports/m2/STRESS_budget_states_exceeded"
+w_min = 6
+w_max = 6
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 t)"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 t)"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 t)"
+
+[[alphabet.letters]]
+name = "d"
+expr = "(+ 4 t)"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.budget]
+max_states = 1

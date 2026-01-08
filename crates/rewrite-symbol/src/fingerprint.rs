@@ -412,6 +412,7 @@ fn map_symbol_error(err: SymbolError) -> UnknownReason {
         SymbolError::Eval(_) => UnknownReason::SymbolEval,
         SymbolError::InsufficientSamples => UnknownReason::InsufficientSamples,
         SymbolError::FuelExhausted => UnknownReason::BudgetExhausted,
+        SymbolError::ConstraintBudgetExceeded(_) => UnknownReason::BudgetExhausted,
     }
 }
 

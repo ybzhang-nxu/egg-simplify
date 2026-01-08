@@ -3,55 +3,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use mpl_experiments::{parse_spec_str, run_experiment, write_outputs, ExperimentConfig};
+use mpl_symbol::space::{
+    build_integrable_basis_with_acceptor_with_stats, build_integrable_basis_with_stats,
+    WordConstraintsAcceptor,
+};
 
-const L1_A2_GOLDEN_TOML: &str = r#"
-[experiment]
-id = "L1_A2_cluster_golden"
-title = "A2 pentagon adjacency golden (w<=6)"
-out_dir = "OUT_DIR_REPLACED_IN_TEST"
-w_min = 1
-w_max = 6
-
-[alphabet]
-vars = ["x1", "x2"]
-
-[[alphabet.letters]]
-name = "x1"
-expr = "x1"
-
-[[alphabet.letters]]
-name = "x2"
-expr = "x2"
-
-[[alphabet.letters]]
-name = "x3"
-expr = "(/ (+ 1 x2) x1)"
-
-[[alphabet.letters]]
-name = "x4"
-expr = "(/ (+ 1 x1 x2) x1 x2)"
-
-[[alphabet.letters]]
-name = "x5"
-expr = "(/ (+ 1 x1) x2)"
-
-[constraints]
-first_entry = ["x1", "x2"]
-adjacency_mode = "allow"
-adjacency_pairs = [
-  ["x1","x2"], ["x2","x1"],
-  ["x2","x3"], ["x3","x2"],
-  ["x3","x4"], ["x4","x3"],
-  ["x4","x5"], ["x5","x4"],
-  ["x5","x1"], ["x1","x5"],
-]
-
-[pairs]
-count_mode = "active_word_positions"
-"#;
+fn golden_spec_str() -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("tests")
+        .join("data")
+        .join("L1_A2_cluster_golden.toml");
+    fs::read_to_string(path).expect("read golden spec")
+}
 
 fn golden_config(out_dir: &Path) -> ExperimentConfig {
-    let mut cfg = parse_spec_str(L1_A2_GOLDEN_TOML).expect("parse spec");
+    let mut cfg = parse_spec_str(&golden_spec_str()).expect("parse spec");
     cfg.out_dir = out_dir.to_path_buf();
     cfg
 }
@@ -259,6 +227,19 @@ fn determinism_l1_a2_outputs_are_identical() {
 }
 
 #[test]
+fn basis_stats_acceptor_matches_constraints_golden_w1_to_w6() {
+    let cfg = parse_spec_str(&golden_spec_str()).expect("parse spec");
+    let acceptor = WordConstraintsAcceptor::new(&cfg.constraints);
+
+    for w in 1..=6 {
+        let b1 = build_integrable_basis_with_stats(&cfg.alphabet, &cfg.constraints, w).unwrap();
+        let b2 = build_integrable_basis_with_acceptor_with_stats(&cfg.alphabet, &acceptor, w, None)
+            .unwrap();
+        assert_eq!(b1.stats().one_line(), b2.stats().one_line());
+    }
+}
+
+#[test]
 fn adjacency_allow_requires_pairs() {
     let spec = r#"
 [experiment]
@@ -344,7 +325,7 @@ fn column_index(header: &[String], name: &str) -> usize {
         .unwrap_or_else(|| panic!("missing column: {name}"))
 }
 
-fn row_by_weight<'a>(table: &'a CsvTable, weight: u64) -> &'a Vec<String> {
+fn row_by_weight(table: &CsvTable, weight: u64) -> &[String] {
     let idx = column_index(&table.header, "weight");
     table
         .rows
@@ -353,7 +334,7 @@ fn row_by_weight<'a>(table: &'a CsvTable, weight: u64) -> &'a Vec<String> {
         .unwrap_or_else(|| panic!("missing weight {weight}"))
 }
 
-fn value<'a>(table: &'a CsvTable, row: &'a Vec<String>, name: &str) -> &'a str {
+fn value<'a>(table: &'a CsvTable, row: &'a [String], name: &str) -> &'a str {
     let idx = column_index(&table.header, name);
     &row[idx]
 }

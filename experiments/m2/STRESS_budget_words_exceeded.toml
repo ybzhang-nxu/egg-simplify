@@ -1,0 +1,135 @@
+[experiment]
+id = "STRESS_budget_words_exceeded"
+out_dir = "reports/m2/STRESS_budget_words_exceeded"
+w_min = 15
+w_max = 15
+
+[alphabet]
+vars = ["t"]
+
+[[alphabet.letters]]
+name = "l00"
+expr = "t"
+
+[[alphabet.letters]]
+name = "l01"
+expr = "(+ 1 t)"
+
+[[alphabet.letters]]
+name = "l02"
+expr = "(+ 2 t)"
+
+[[alphabet.letters]]
+name = "l03"
+expr = "(+ 3 t)"
+
+[[alphabet.letters]]
+name = "l04"
+expr = "(+ 4 t)"
+
+[[alphabet.letters]]
+name = "l05"
+expr = "(+ 5 t)"
+
+[[alphabet.letters]]
+name = "l06"
+expr = "(+ 6 t)"
+
+[[alphabet.letters]]
+name = "l07"
+expr = "(+ 7 t)"
+
+[[alphabet.letters]]
+name = "l08"
+expr = "(+ 8 t)"
+
+[[alphabet.letters]]
+name = "l09"
+expr = "(+ 9 t)"
+
+[[alphabet.letters]]
+name = "l10"
+expr = "(+ 10 t)"
+
+[[alphabet.letters]]
+name = "l11"
+expr = "(+ 11 t)"
+
+[[alphabet.letters]]
+name = "l12"
+expr = "(+ 12 t)"
+
+[[alphabet.letters]]
+name = "l13"
+expr = "(+ 13 t)"
+
+[[alphabet.letters]]
+name = "l14"
+expr = "(+ 14 t)"
+
+[[alphabet.letters]]
+name = "l15"
+expr = "(+ 15 t)"
+
+[[alphabet.letters]]
+name = "l16"
+expr = "(+ 16 t)"
+
+[[alphabet.letters]]
+name = "l17"
+expr = "(+ 17 t)"
+
+[[alphabet.letters]]
+name = "l18"
+expr = "(+ 18 t)"
+
+[[alphabet.letters]]
+name = "l19"
+expr = "(+ 19 t)"
+
+[[alphabet.letters]]
+name = "l20"
+expr = "(+ 20 t)"
+
+[[alphabet.letters]]
+name = "l21"
+expr = "(+ 21 t)"
+
+[[alphabet.letters]]
+name = "l22"
+expr = "(+ 22 t)"
+
+[[alphabet.letters]]
+name = "l23"
+expr = "(+ 23 t)"
+
+[[alphabet.letters]]
+name = "l24"
+expr = "(+ 24 t)"
+
+[[alphabet.letters]]
+name = "l25"
+expr = "(+ 25 t)"
+
+[[alphabet.letters]]
+name = "l26"
+expr = "(+ 26 t)"
+
+[[alphabet.letters]]
+name = "l27"
+expr = "(+ 27 t)"
+
+[[alphabet.letters]]
+name = "l28"
+expr = "(+ 28 t)"
+
+[[alphabet.letters]]
+name = "l29"
+expr = "(+ 29 t)"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.budget]
+max_words = 1000000

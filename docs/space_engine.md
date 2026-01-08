@@ -11,9 +11,12 @@ indices.
 
 Key APIs (in `crate::space`):
 
-- `Alphabet` and `WordConstraints`: define the letter set and allowed words.
-- `build_integrable_basis`: enumerate words, build constraints, and return a
-  `Basis` whose vectors span the integrable subspace.
+- `Alphabet`, `WordConstraints`, and `WordAcceptor`: define the letter set and
+  allowed words (constraints can be adapted to acceptors).
+- `build_integrable_basis` and `build_integrable_basis_with_acceptor`:
+  enumerate words, build constraints, and return a `Basis` whose vectors span
+  the integrable subspace.
+- `count_words_with_acceptor`: deterministic DP word counts with budgets.
 - `check_integrable_n`: verify integrability for any weight.
 - `reduce_to_basis`: express a symbol in the integrable basis (residual if not).
 - `BasisStats`: standardized diagnostics for basis construction.
@@ -23,6 +26,16 @@ Key APIs (in `crate::space`):
 - Words are sequences of letter IDs of length `w`.
 - Enumeration is lexicographic in ID order, left-to-right.
 - `WordConstraints` can restrict the first letter and/or allowed adjacent pairs.
+- `WordAcceptor` provides a composable DFA-style filter over words; adapters
+  preserve the M1 constraints.
+- `KGramAcceptor` (k=3) enforces allowed/forbidden triplets; an empty allow-list
+  rejects all triplets once the context length reaches 2 (the experiments spec
+  rejects empty allow-lists for safety).
+- `GenealogicalAcceptor` enforces "after seeing X, forbid Y later" rules.
+  The experiments spec defaults to channel-level tracking and uses a fixed-size
+  bitset state to keep determinism and avoid state explosion.
+- Experiments TOML can attach per-letter `channel` metadata (required when
+  `seen = "channel"`) and optional constraint budgets via `[constraints.budget]`.
 
 ## Integrability Constraints
 

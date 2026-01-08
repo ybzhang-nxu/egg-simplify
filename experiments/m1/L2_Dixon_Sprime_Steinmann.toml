@@ -2,6 +2,8 @@
 # Variables: u,v,w (cross ratios).
 # Letters:
 #   a=u/(vw), b=v/(wu), c=w/(uv), d=(1-u)/u, e=(1-v)/v, f=(1-w)/w
+# Optional M2 additions: alphabet.letters[].channel, constraints.budget, constraints.automaton.acceptors (kgram/genealogical).
+# See templates/m2_template.toml for a full schema example.
 
 [experiment]
 id = "L2_Dixon_Sprime_Steinmann"
