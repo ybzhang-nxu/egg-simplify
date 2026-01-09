@@ -5,4 +5,5 @@ Cargo.lock
 # private research planning (DO NOT COMMIT)
 计划实验书.md
 # local shell artifacts
-*Select-Object Name
+reports/
+scripts/
