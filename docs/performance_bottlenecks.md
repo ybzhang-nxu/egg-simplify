@@ -14,6 +14,10 @@ fast and deterministic.
 Typical symptom:
 - `count` completes quickly, but `run` stalls in basis construction.
 
+Additional symptom (dense specs / higher weights):
+- `run` can panic with `num-rational` overflow during basis construction
+  (streaming elimination multiplies large rationals).
+
 This is expected given the current algorithm:
 - We enumerate all allowed words.
 - We generate constraint rows for each context and variable pair.
@@ -39,6 +43,9 @@ Short-term (no code changes):
   weights.
 - Apply `[constraints.budget]` to force a fast `ConstraintBudgetExceeded` when
   a run is expected to be too large.
+- For dense random/literature specs that overflow during elimination, set
+  `constraints.budget.max_states` below the acceptor state count to fail fast
+  and still emit deterministic CSV outputs.
 - Keep stress specs `#[ignore]` in tests; prefer explicit CLI runs.
 
 Longer-term (design constraints apply):

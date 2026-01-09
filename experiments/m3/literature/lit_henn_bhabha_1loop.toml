@@ -1,0 +1,47 @@
+[experiment]
+id = "lit_henn_bhabha_1loop"
+out_dir = "reports/m3/literature/lit_henn_bhabha_1loop"
+w_min = 1
+w_max = 6
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "x"
+expr = "x"
+
+[[alphabet.letters]]
+name = "1_plus_x"
+expr = "(+ 1 x)"
+
+[[alphabet.letters]]
+name = "1_minus_x"
+expr = "(+ 1 (- x))"
+
+[[alphabet.letters]]
+name = "y"
+expr = "y"
+
+[[alphabet.letters]]
+name = "1_plus_y"
+expr = "(+ 1 y)"
+
+[[alphabet.letters]]
+name = "1_minus_y"
+expr = "(+ 1 (- y))"
+
+[[alphabet.letters]]
+name = "x_plus_y"
+expr = "(+ x y)"
+
+[[alphabet.letters]]
+name = "1_plus_xy"
+expr = "(+ 1 (* x y))"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.budget]
+max_states = 8

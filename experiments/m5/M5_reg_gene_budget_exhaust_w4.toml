@@ -1,0 +1,72 @@
+[experiment]
+id = "M5_reg_gene_budget_exhaust_w4"
+out_dir = "reports/m5/M5_reg_gene_budget_exhaust_w4"
+w_min = 4
+w_max = 4
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a0"
+expr = "(+ 1 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a1"
+expr = "(+ 2 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a2"
+expr = "(+ 3 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a3"
+expr = "(+ 4 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a4"
+expr = "(+ 5 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a5"
+expr = "(+ 6 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a6"
+expr = "(+ 7 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a7"
+expr = "(+ 8 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a8"
+expr = "(+ 9 (^ x 2))"
+
+[[alphabet.letters]]
+name = "a9"
+expr = "(+ 10 (^ x 2))"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.budget]
+max_states = 5
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "genealogical"
+seen = "letter"
+rules = [
+  { if_seen = "a0", forbid = ["a0"] },
+  { if_seen = "a1", forbid = ["a1"] },
+  { if_seen = "a2", forbid = ["a2"] },
+  { if_seen = "a3", forbid = ["a3"] },
+  { if_seen = "a4", forbid = ["a4"] },
+  { if_seen = "a5", forbid = ["a5"] },
+  { if_seen = "a6", forbid = ["a6"] },
+  { if_seen = "a7", forbid = ["a7"] },
+  { if_seen = "a8", forbid = ["a8"] },
+  { if_seen = "a9", forbid = ["a9"] }
+]

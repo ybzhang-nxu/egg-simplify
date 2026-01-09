@@ -219,6 +219,7 @@ fn determinism_l1_a2_outputs_are_identical() {
         "pairs.csv",
         "pairs_by_weight.csv",
         "topology_metrics.csv",
+        "skeleton2_metrics.csv",
     ] {
         let b1 = fs::read(out_dir_1.join(name)).expect("read output 1");
         let b2 = fs::read(out_dir_2.join(name)).expect("read output 2");

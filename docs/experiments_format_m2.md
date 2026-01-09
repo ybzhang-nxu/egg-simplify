@@ -29,12 +29,17 @@ Required keys:
 Each `[[alphabet.letters]]` entry:
 - `name` (string, unique across letters)
 - `expr` (string; mpl-ir s-expression)
-- `channel` (string, optional; required when genealogical `seen = "channel"`)
+- `channel` (string or integer, optional; required when genealogical `seen = "channel"`
+  or `channel_pairs` acceptors are used)
 
 Parsing/normalization:
 - `expr` is parsed with `mpl_ir::parse_sexpr` and normalized.
 - Duplicate `name` entries are rejected.
 - The output CSVs use the provided `name` values.
+- Numeric channel strings (e.g. `"01"`) are normalized to canonical decimal
+  strings for channel-based acceptors; `"01"` and `1` are treated as the same
+  channel. Non-numeric channel strings are allowed for genealogical
+  `seen = "channel"` but are rejected when `channel_pairs` is used.
 
 Vars handling:
 - `vars` is carried into output reporting.
@@ -115,6 +120,25 @@ Validation:
 - If `rules` is empty, the acceptor is skipped (no extra constraints), but
   `seen = "channel"` still requires all letters to have channels.
 
+3) `kind = "channel_pairs"`
+- `mode` (`"allowed"` or `"forbidden"`)
+- `symmetric` (bool, optional; default `false`)
+- `pairs` (array of `[u16, u16]`)
+
+Validation:
+- All letters must define `channel` when `channel_pairs` is used.
+- Channel values must be numeric (`u16`) or parseable from strings.
+- `mode = "allowed"` with empty `pairs` is an error (`InvalidSpecEmptyAllowList`).
+
+Example:
+```toml
+[[constraints.automaton.acceptors]]
+kind = "channel_pairs"
+mode = "forbidden"
+symmetric = true
+pairs = [[0, 0], [1, 1]]
+```
+
 #### `[pairs]` (optional)
 Optional keys:
 - `count_mode` (string). Only `"active_word_positions"` is supported.
@@ -133,6 +157,7 @@ When omitted, the runner still computes pairs using the
 - `triplets.csv`
 - `triplets_by_weight.csv`
 - `topology_metrics.csv`
+- `skeleton2_metrics.csv`
 
 Count-only runs (`mpl-experiments count --spec ...`) write:
 - `counts_only.csv`
@@ -244,6 +269,33 @@ Graph definition:
 
 `error` equals `error_code` (CSV-escaped); empty on `ok`.
 
+### `skeleton2_metrics.csv`
+Header (exact column order):
+```
+weight,status,error_code,error,n_vertices,n_edges_undirected,triangles,clustering_num,clustering_den,beta1_est,triplets_supported_by_triangles_num,triplets_supported_by_triangles_den
+```
+
+Graph definition (undirected 2-skeleton):
+- Vertices match `topology_metrics.csv` (`n_vertices` equals alphabet size).
+- Undirected edges are present when a directed pair `(a,b)` or `(b,a)` appears at least once.
+- Self-loops are ignored for undirected edges and triangle counting.
+
+Fields:
+- `n_vertices`: number of vertices in the undirected graph.
+- `n_edges_undirected`: number of unique undirected edges.
+- `triangles`: number of undirected 3-cliques (2-simplices in the clique 2-skeleton).
+- `clustering_num / clustering_den`: global transitivity coefficient, where
+  `clustering_num = 3 * triangles` and `clustering_den = sum_v choose(deg(v), 2)`.
+  If `clustering_den == 0`, both numerator and denominator are `0`.
+- `beta1_est`: rough first Betti estimate `E - V + C`, using undirected
+  edges `E`, vertices `V`, and weakly connected components `C`.
+- `triplets_supported_by_triangles_num / _den`: count of ordered triplets
+  whose distinct vertices form a triangle in the undirected graph, divided by
+  total ordered triplet occurrences at that weight. If the denominator is `0`,
+  both numerator and denominator are `0` (no reduction).
+
+`status`/`error_code`/`error` follow the same per-weight contract as other CSVs.
+
 ### `counts_only.csv` (count-only runs)
 Header:
 ```
@@ -350,3 +402,9 @@ max_states = 2
 - Budgets and automaton acceptors are additive only.
 - Triplet CSV outputs are additive; existing M1 outputs and column orders are
   unchanged.
+
+## F) M3 dataset folders (additive)
+
+- `experiments/m3/random/`: deterministic random specs (see `catalog.csv`).
+- `experiments/m3/literature/`: small literature-inspired alphabets (Henn-style).
+- `experiments/m3/README.md` documents how to run these suites.

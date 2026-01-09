@@ -1,0 +1,30 @@
+[experiment]
+id = "M5_reg_gene_letter_a_forbid_b_w3"
+out_dir = "reports/m5/M5_reg_gene_letter_a_forbid_b_w3"
+w_min = 3
+w_max = 3
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 (^ x 2))"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 (^ x 2))"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 (^ x 2))"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "genealogical"
+seen = "letter"
+rules = [{ if_seen = "a", forbid = ["b"] }]

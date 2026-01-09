@@ -1,0 +1,20 @@
+[experiment]
+id = "lit_henn_4pt_onshell"
+out_dir = "reports/m3/literature/lit_henn_4pt_onshell"
+w_min = 1
+w_max = 6
+
+[alphabet]
+vars = ["x"]
+
+[[alphabet.letters]]
+name = "x"
+expr = "x"
+
+[[alphabet.letters]]
+name = "1_plus_x"
+expr = "(+ 1 x)"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []

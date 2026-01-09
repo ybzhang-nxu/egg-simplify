@@ -11,8 +11,8 @@ use crate::{Coeff, Symbol, Word};
 mod acceptor;
 mod stats;
 pub use acceptor::{
-    And, ConstraintBudget, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode,
-    WordAcceptor, WordConstraintsAcceptor,
+    And, ChannelPairsAcceptor, ChannelPairsMode, ConstraintBudget, GenealogicalAcceptor,
+    GenealogicalRule, KGramAcceptor, KGramMode, WordAcceptor, WordConstraintsAcceptor,
 };
 pub use stats::BasisStats;
 

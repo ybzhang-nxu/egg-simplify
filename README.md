@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.1.7 node release)
+# mpl-simplifier (v0.1.8 node release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -246,18 +246,40 @@ Manual tools:
   writes M1 outputs (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`,
   `pairs_by_weight.csv`, `triplets.csv`, `triplets_by_weight.csv`,
   `topology_metrics.csv`) under the spec's `out_dir`.
+- `mpl-experiments` sets `default-run = "mpl_experiments"`, so `cargo run -p mpl-experiments -- ...`
+  works without specifying `--bin`.
 - `cargo run -p mpl-experiments -- count --spec experiments/m2/M2_gene_channel_no_interleave_count_w12.toml`
   writes `counts_only.csv` to the spec `out_dir`.
+- `cargo run -p mpl-experiments -- filtration --spec experiments/m6/M6_reg_filtration_chain_w3.toml`
+  writes `filtration_summary.csv` and `filtration_summary.md` to the spec `out_dir`.
 - Experiments spec: k-gram `mode = "allowed"` requires non-empty `triplets`
   (parse error includes `InvalidSpecEmptyAllowList`).
 - Experiments spec: budgets are opt-in via `[constraints.budget]` with
   `max_states`, `max_transitions`, `max_words`.
 - Experiments spec: acceptors are listed under `[constraints.automaton.acceptors]`
-  with `kind = "kgram"` or `kind = "genealogical"`.
+  with `kind = "kgram"`, `kind = "genealogical"`, or `kind = "channel_pairs"`.
 - Experiments spec: genealogical constraints default to channel-level tracking;
   `[[alphabet.letters]]` may declare `channel`, required when `seen = "channel"`.
-- See `docs/experiments_format_m2.md` for the TOML schema and outputs.
+- See `docs/experiments_format_m2.md` for the M2 single-run schema and outputs,
+  and `docs/experiments_format_m6.md` for the filtration schema and outputs.
 - See `docs/performance_bottlenecks.md` for known scale limits.
+
+## v0.1.8 Release Notes
+- Added M3/M4/M5/M6 experiment suites (`experiments/m3`, `experiments/m4`,
+  `experiments/m5`, `experiments/m6`) and new regression coverage.
+- New public API (mpl-experiments): `Skeleton2Metrics`, `render_skeleton2_metrics`,
+  `load_filtration_spec`, `parse_filtration_spec_str`, `run_filtration`,
+  `FiltrationSpec`, `FiltrationLayer`, `FiltrationLayerInfo`, `FiltrationMode`,
+  `FiltrationReport`, `FiltrationSummaryRow`, `render_filtration_summary_csv`,
+  `render_filtration_summary_md`, `write_filtration_summary`.
+- Added M6 filtration spec + outputs (`filtration_summary.csv`/`.md`), documented
+  in `docs/experiments_format_m6.md`.
+- Canonicalized channel handling for acceptors to avoid `"01"` vs `1` drift;
+  `channel_pairs` remains numeric-only with deterministic errors.
+- Refactored `mpl-experiments` internals into focused modules; output contracts
+  unchanged and existing APIs remain source-compatible.
+- Hardened repeat-signature checks with deterministic CSV escaping and
+  explicit errors for invalid baseline state.
 
 ## v0.1.7 Release Notes
 - Added M2 experiment spec documentation (`docs/experiments_format_m2.md`) and

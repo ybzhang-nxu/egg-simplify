@@ -391,13 +391,19 @@ mod tests {
 
     #[test]
     fn genealogical_budget_exceeded_states() {
-        let rules = vec![GenealogicalRule {
-            if_seen: 0,
-            forbid: vec![1],
-        }];
+        let rules = vec![
+            GenealogicalRule {
+                if_seen: 0,
+                forbid: vec![0],
+            },
+            GenealogicalRule {
+                if_seen: 1,
+                forbid: vec![1],
+            },
+        ];
         let acceptor = GenealogicalAcceptor::new(vec![0, 1], 2, rules).unwrap();
         let budget = ConstraintBudget {
-            max_states: Some(2),
+            max_states: Some(3),
             ..Default::default()
         };
 
@@ -416,10 +422,20 @@ mod tests {
         for idx in 0..alpha_len {
             letter_to_key.push(idx);
         }
-        let rules = vec![GenealogicalRule {
-            if_seen: 0,
-            forbid: vec![1, 2, 3, 4, 5],
-        }];
+        let rules = vec![
+            GenealogicalRule {
+                if_seen: 0,
+                forbid: vec![1],
+            },
+            GenealogicalRule {
+                if_seen: 2,
+                forbid: vec![3],
+            },
+            GenealogicalRule {
+                if_seen: 4,
+                forbid: vec![5],
+            },
+        ];
         let acceptor = GenealogicalAcceptor::new(letter_to_key, alpha_len, rules).unwrap();
         let budget = ConstraintBudget {
             max_states: Some(3),

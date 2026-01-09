@@ -2,6 +2,7 @@
 name = "mpl-experiments"
 version = "0.1.1"
 edition = "2021"
+default-run = "mpl_experiments"
 
 [dependencies]
 mpl-ir = { path = "../ir" }

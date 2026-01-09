@@ -1,0 +1,39 @@
+[experiment]
+id = "M4_reg_cluster_same_channel_w3"
+out_dir = "reports/m4/M4_reg_cluster_same_channel_w3"
+w_min = 3
+w_max = 3
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 (^ x 2))"
+channel = 0
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 (^ x 2))"
+channel = 1
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 (^ x 2))"
+channel = 1
+
+[[alphabet.letters]]
+name = "d"
+expr = "(+ 4 (^ x 2))"
+channel = 1
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "channel_pairs"
+mode = "allowed"
+symmetric = true
+pairs = [[0, 0], [1, 1]]

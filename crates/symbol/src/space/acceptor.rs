@@ -24,6 +24,12 @@ pub enum KGramMode {
     Forbidden,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChannelPairsMode {
+    Allowed,
+    Forbidden,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Bitset {
     words: Vec<u64>,
@@ -73,14 +79,13 @@ pub struct GenealogicalRule {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GenealogicalState {
-    seen: Bitset,
     forbidden: Bitset,
 }
 
 #[derive(Clone, Debug)]
 pub struct GenealogicalAcceptor {
     letter_to_key: Vec<usize>,
-    forbid_masks: Vec<Bitset>,
+    forbid_after: Vec<Bitset>,
     key_count: usize,
 }
 
@@ -101,9 +106,9 @@ impl GenealogicalAcceptor {
             ));
         }
 
-        let mut forbid_masks = Vec::with_capacity(key_count);
+        let mut forbid_after = Vec::with_capacity(key_count);
         for _ in 0..key_count {
-            forbid_masks.push(Bitset::new(key_count));
+            forbid_after.push(Bitset::new(key_count));
         }
 
         let mut seen_rules = std::collections::BTreeSet::new();
@@ -132,7 +137,7 @@ impl GenealogicalAcceptor {
                     "duplicate genealogical rule".to_string(),
                 ));
             }
-            let mask = &mut forbid_masks[rule.if_seen];
+            let mask = &mut forbid_after[rule.if_seen];
             for idx in forbid {
                 mask.set(idx);
             }
@@ -140,7 +145,7 @@ impl GenealogicalAcceptor {
 
         Ok(Self {
             letter_to_key,
-            forbid_masks,
+            forbid_after,
             key_count,
         })
     }
@@ -159,7 +164,6 @@ impl WordAcceptor for GenealogicalAcceptor {
 
     fn start(&self) -> Self::State {
         GenealogicalState {
-            seen: Bitset::new(self.key_count),
             forbidden: Bitset::new(self.key_count),
         }
     }
@@ -173,15 +177,12 @@ impl WordAcceptor for GenealogicalAcceptor {
             return None;
         }
 
-        let mut seen = state.seen.clone();
-        seen.set(key);
-
         let mut forbidden = state.forbidden.clone();
-        if let Some(mask) = self.forbid_masks.get(key) {
+        if let Some(mask) = self.forbid_after.get(key) {
             forbidden.or_assign(mask);
         }
 
-        Some(GenealogicalState { seen, forbidden })
+        Some(GenealogicalState { forbidden })
     }
 }
 
@@ -241,6 +242,80 @@ impl WordAcceptor for KGramAcceptor {
             prev2: state.prev1,
             prev1: Some(next),
         })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ChannelPairsAcceptor {
+    mode: ChannelPairsMode,
+    symmetric: bool,
+    pairs: Vec<[u16; 2]>,
+    letter_to_channel: Vec<u16>,
+}
+
+impl ChannelPairsAcceptor {
+    pub fn new(
+        letter_to_channel: Vec<u16>,
+        mode: ChannelPairsMode,
+        symmetric: bool,
+        mut pairs: Vec<[u16; 2]>,
+    ) -> Result<Self, SymbolError> {
+        if symmetric {
+            for pair in &mut pairs {
+                if pair[0] > pair[1] {
+                    pair.swap(0, 1);
+                }
+            }
+        }
+        pairs.sort_unstable();
+        for window in pairs.windows(2) {
+            if window[0] == window[1] {
+                return Err(SymbolError::NotImplemented(
+                    "duplicate channel pair".to_string(),
+                ));
+            }
+        }
+        Ok(Self {
+            mode,
+            symmetric,
+            pairs,
+            letter_to_channel,
+        })
+    }
+
+    pub fn letter_count(&self) -> usize {
+        self.letter_to_channel.len()
+    }
+
+    pub fn mode(&self) -> ChannelPairsMode {
+        self.mode
+    }
+}
+
+impl WordAcceptor for ChannelPairsAcceptor {
+    type State = Option<u16>;
+
+    fn start(&self) -> Self::State {
+        None
+    }
+
+    fn step(&self, state: &Self::State, next: usize) -> Option<Self::State> {
+        let next_channel = *self.letter_to_channel.get(next)?;
+        if let Some(prev_channel) = *state {
+            let (a, b) = if self.symmetric && prev_channel > next_channel {
+                (next_channel, prev_channel)
+            } else {
+                (prev_channel, next_channel)
+            };
+            let key = [a, b];
+            let contains = self.pairs.binary_search(&key).is_ok();
+            match self.mode {
+                ChannelPairsMode::Allowed if !contains => return None,
+                ChannelPairsMode::Forbidden if contains => return None,
+                _ => {}
+            }
+        }
+        Some(Some(next_channel))
     }
 }
 

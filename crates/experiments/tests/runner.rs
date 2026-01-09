@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use mpl_experiments::{
     parse_spec_str, render_basis_stats, render_dim_vs_w, render_pairs, render_pairs_by_weight,
-    render_topology_metrics, render_triplets, render_triplets_by_weight, run_experiment,
-    toy_alphabet_xy, write_outputs, ErrorCode, ExperimentConfig, Status,
+    render_skeleton2_metrics, render_topology_metrics, render_triplets, render_triplets_by_weight,
+    run_experiment, toy_alphabet_xy, write_outputs, ErrorCode, ExperimentConfig, Status,
 };
 use mpl_symbol::space::{ConstraintBudget, WordConstraints};
 
@@ -49,6 +49,7 @@ fn toy_xy_dim_is_w_plus_1() {
         constraints: WordConstraints::default(),
         genealogical_acceptors: Vec::new(),
         kgram_acceptors: Vec::new(),
+        channel_pairs_acceptors: Vec::new(),
         automaton_acceptors: Vec::new(),
         constraint_budget: ConstraintBudget::default(),
         weight_min: 1,
@@ -78,6 +79,7 @@ fn adjacency_constraint_removes_pair_and_matches_word_count() {
         constraints: constraints.clone(),
         genealogical_acceptors: Vec::new(),
         kgram_acceptors: Vec::new(),
+        channel_pairs_acceptors: Vec::new(),
         automaton_acceptors: Vec::new(),
         constraint_budget: ConstraintBudget::default(),
         weight_min: 3,
@@ -116,6 +118,7 @@ fn outputs_are_deterministic() {
         constraints: WordConstraints::default(),
         genealogical_acceptors: Vec::new(),
         kgram_acceptors: Vec::new(),
+        channel_pairs_acceptors: Vec::new(),
         automaton_acceptors: Vec::new(),
         constraint_budget: ConstraintBudget::default(),
         weight_min: 2,
@@ -136,6 +139,7 @@ fn outputs_are_deterministic() {
         render_triplets_by_weight(&r2)
     );
     assert_eq!(render_topology_metrics(&r1), render_topology_metrics(&r2));
+    assert_eq!(render_skeleton2_metrics(&r1), render_skeleton2_metrics(&r2));
 }
 
 #[test]
@@ -337,6 +341,9 @@ max_states = 3
 [[constraints.automaton.acceptors]]
 kind = "genealogical"
 seen = "channel"
-rules = [{ if_seen = "A", forbid = ["B"] }]
+rules = [
+  { if_seen = "A", forbid = ["A"] },
+  { if_seen = "B", forbid = ["B"] }
+]
 "#
 }

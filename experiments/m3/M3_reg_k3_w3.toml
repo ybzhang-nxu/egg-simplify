@@ -1,0 +1,25 @@
+[experiment]
+id = "M3_reg_k3_w3"
+out_dir = "reports/m3/M3_reg_k3_w3"
+w_min = 3
+w_max = 3
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 (^ x 2))"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 (^ x 2))"
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 (^ x 2))"
+
+[constraints]
+first_entry = ["a", "b", "c"]
+adjacency_mode = "allow"
+adjacency_pairs = [["a", "b"], ["b", "c"], ["c", "a"]]

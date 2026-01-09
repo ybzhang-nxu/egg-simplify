@@ -1,0 +1,85 @@
+id = "M6_reg_filtration_chain_w3"
+out_dir = "reports/m6/M6_reg_filtration_chain_w3"
+repeats = 2
+
+[weights]
+min = 3
+max = 3
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 (^ x 2))"
+channel = 0
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 (^ x 2))"
+channel = 0
+
+[[alphabet.letters]]
+name = "c"
+expr = "(+ 3 (^ x 2))"
+channel = 1
+
+[[alphabet.letters]]
+name = "d"
+expr = "(+ 4 (^ x 2))"
+channel = 1
+
+[[layers]]
+name = "L0_integrability"
+mode = "count_only"
+[layers.constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[[layers]]
+name = "L1_first_entry"
+mode = "count_only"
+[layers.constraints]
+first_entry = ["a", "b"]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[[layers]]
+name = "L2_steinmann_forbid_11"
+mode = "count_only"
+[layers.constraints]
+first_entry = ["a", "b"]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+[layers.constraints.automaton]
+[[layers.constraints.automaton.acceptors]]
+kind = "channel_pairs"
+mode = "forbidden"
+symmetric = true
+pairs = [[1, 1]]
+
+[[layers]]
+name = "L3_cluster_allow_00_01"
+mode = "count_only"
+[layers.constraints]
+first_entry = ["a", "b"]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+[layers.constraints.automaton]
+[[layers.constraints.automaton.acceptors]]
+kind = "channel_pairs"
+mode = "allowed"
+pairs = [[0, 0], [0, 1]]
+
+[[layers]]
+name = "L4_gene_0_forbid_1"
+mode = "count_only"
+[layers.constraints]
+first_entry = ["a", "b"]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+[layers.constraints.automaton]
+[[layers.constraints.automaton.acceptors]]
+kind = "genealogical"
+seen = "channel"
+rules = [{ if_seen = "0", forbid = ["1"] }]
