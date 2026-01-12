@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::build::alphabet::letter_display_names;
 use crate::output::csv::{escape_csv_field, vars_csv};
 use crate::run::count::CountReport;
-use crate::run::single::ExperimentReport;
+use crate::run::single::{ExperimentReport, GenealogicalKind};
 use crate::ExperimentError;
 
 pub fn write_outputs(report: &ExperimentReport, out_dir: &Path) -> Result<(), ExperimentError> {
@@ -20,6 +20,14 @@ pub fn write_outputs(report: &ExperimentReport, out_dir: &Path) -> Result<(), Ex
     fs::write(
         out_dir.join("triplets_by_weight.csv"),
         render_triplets_by_weight(report),
+    )?;
+    fs::write(
+        out_dir.join("forbidden_pairs.csv"),
+        render_forbidden_pairs(report),
+    )?;
+    fs::write(
+        out_dir.join("genealogical_rules.json"),
+        render_genealogical_rules(report),
     )?;
     fs::write(
         out_dir.join("topology_metrics.csv"),
@@ -59,7 +67,7 @@ pub fn render_basis_stats(report: &ExperimentReport) -> String {
 
 pub fn render_dim_vs_w(report: &ExperimentReport) -> String {
     let mut out = String::new();
-    out.push_str("weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error\n");
+    out.push_str("weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,sample_table,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error\n");
     let vars_value = vars_csv(&report.vars);
     let vars_field = escape_csv_field(&vars_value);
     for summary in &report.summaries {
@@ -74,7 +82,7 @@ pub fn render_dim_vs_w(report: &ExperimentReport) -> String {
         let error_code_field = escape_csv_field(error_code);
         let error_field = error_code_field.clone();
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             summary.weight,
             summary.n_words_allowed,
             stats.dim,
@@ -83,6 +91,7 @@ pub fn render_dim_vs_w(report: &ExperimentReport) -> String {
             stats.rows_inserted,
             stats.samples_used,
             stats.envs_total,
+            escape_csv_field(stats.sample_table.as_str()),
             stats.rows_skipped_singular,
             stats.constraints_insufficient_samples,
             &vars_field,
@@ -199,6 +208,90 @@ pub fn render_triplets_by_weight(report: &ExperimentReport) -> String {
     out
 }
 
+pub fn render_forbidden_pairs(report: &ExperimentReport) -> String {
+    let mut out = String::new();
+    out.push_str("lhs,rhs\n");
+
+    let keys = &report.genealogical.keys;
+    for &(lhs_idx, rhs_idx) in &report.genealogical.forbidden_pairs {
+        let lhs = match keys.get(lhs_idx) {
+            Some(value) => value,
+            None => continue,
+        };
+        let rhs = match keys.get(rhs_idx) {
+            Some(value) => value,
+            None => continue,
+        };
+        out.push_str(&format!(
+            "{},{}\n",
+            escape_csv_field(lhs),
+            escape_csv_field(rhs)
+        ));
+    }
+    out
+}
+
+pub fn render_genealogical_rules(report: &ExperimentReport) -> String {
+    const NOTES: &str =
+        "A->B forbidden means: no support word contains A at position i and B at position j>i";
+    let rules = &report.genealogical;
+    let key_label = match rules.kind {
+        GenealogicalKind::Channel => "channels",
+        GenealogicalKind::Letter => "letters",
+    };
+
+    let mut out = String::new();
+    out.push_str("{\n");
+    out.push_str(&format!("  \"kind\": \"{}\",\n", rules.kind.as_str()));
+    out.push_str(&format!("  \"method\": \"{}\",\n", rules.method));
+    out.push_str(&format!("  \"weight_min\": {},\n", rules.weight_min));
+    out.push_str(&format!("  \"weight_max\": {},\n", rules.weight_max));
+    out.push_str(&format!(
+        "  \"n_support_words\": {},\n",
+        rules.n_support_words
+    ));
+    out.push_str(&format!("  \"{key_label}\": ["));
+    let mut first = true;
+    for key in &rules.keys {
+        if !first {
+            out.push_str(", ");
+        }
+        out.push('"');
+        out.push_str(&escape_json_string(key));
+        out.push('"');
+        first = false;
+    }
+    out.push_str("],\n");
+    out.push_str("  \"forbidden_pairs\": [");
+    let mut first_pair = true;
+    for (lhs_idx, rhs_idx) in &rules.forbidden_pairs {
+        let lhs = match rules.keys.get(*lhs_idx) {
+            Some(value) => value,
+            None => continue,
+        };
+        let rhs = match rules.keys.get(*rhs_idx) {
+            Some(value) => value,
+            None => continue,
+        };
+        if !first_pair {
+            out.push_str(", ");
+        }
+        out.push('[');
+        out.push('"');
+        out.push_str(&escape_json_string(lhs));
+        out.push_str("\", \"");
+        out.push_str(&escape_json_string(rhs));
+        out.push_str("\"]");
+        first_pair = false;
+    }
+    out.push_str("],\n");
+    out.push_str("  \"notes\": \"");
+    out.push_str(&escape_json_string(NOTES));
+    out.push_str("\"\n");
+    out.push_str("}\n");
+    out
+}
+
 pub fn render_topology_metrics(report: &ExperimentReport) -> String {
     let mut out = String::new();
     out.push_str("weight,n_vertices,n_edges,n_active_words,weakly_connected_components,strongly_connected_components,density_num,density_den,max_out_degree,avg_out_degree_num,avg_out_degree_den,status,error_code,error\n");
@@ -253,6 +346,25 @@ pub fn render_skeleton2_metrics(report: &ExperimentReport) -> String {
             metrics.triplets_supported_by_triangles_num,
             metrics.triplets_supported_by_triangles_den
         ));
+    }
+    out
+}
+
+fn escape_json_string(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c < '\u{20}' => {
+                use std::fmt::Write;
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
     }
     out
 }

@@ -1,3 +1,5 @@
+use crate::integrability_utils::SampleTable;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BasisStats {
     pub ncols: usize,
@@ -16,6 +18,7 @@ pub struct BasisStats {
     pub dlog_cache_misses: u64,
     pub wedge_cache_hits: u64,
     pub wedge_cache_misses: u64,
+    pub sample_table: SampleTable,
 }
 
 impl BasisStats {
@@ -26,7 +29,7 @@ impl BasisStats {
             self.sum_row_nnz / self.rows_inserted
         };
         format!(
-            "ncols={}, dim={}, rank={}, rows_attempted={}, rows_inserted={}, samples_used={}, envs_total={}, rows_skipped_singular={}, constraints_insufficient_samples={}, vars={}, max_row_nnz={}, avg_row_nnz={}",
+            "ncols={}, dim={}, rank={}, rows_attempted={}, rows_inserted={}, samples_used={}, envs_total={}, sample_table={}, rows_skipped_singular={}, constraints_insufficient_samples={}, vars={}, max_row_nnz={}, avg_row_nnz={}",
             self.ncols,
             self.dim,
             self.rank,
@@ -34,6 +37,7 @@ impl BasisStats {
             self.rows_inserted,
             self.samples_used,
             self.envs_total,
+            self.sample_table.as_str(),
             self.rows_skipped_singular,
             self.constraints_insufficient_samples,
             self.vars_count,

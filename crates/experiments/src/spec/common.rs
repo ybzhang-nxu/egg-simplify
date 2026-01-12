@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+use mpl_symbol::space::SampleTable;
+
+use crate::ExperimentError;
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct SpecAlphabet {
     pub(crate) vars: Vec<String>,
@@ -60,11 +64,20 @@ pub(crate) enum SpecAutomatonAcceptor {
     ChannelPairs {
         mode: String,
         symmetric: Option<bool>,
-        pairs: Vec<[u16; 2]>,
+        pairs: Vec<[SpecChannel; 2]>,
     },
     #[serde(rename = "genealogical")]
     Genealogical {
         seen: Option<String>,
         rules: Vec<SpecGenealogicalRule>,
     },
+}
+
+pub(crate) fn parse_sample_table(value: Option<&str>) -> Result<SampleTable, ExperimentError> {
+    match value {
+        None => Ok(SampleTable::default()),
+        Some(name) => name
+            .parse::<SampleTable>()
+            .map_err(|_| ExperimentError::InvalidConfig(format!("unknown sample_table: {name}"))),
+    }
 }

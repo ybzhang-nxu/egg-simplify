@@ -38,8 +38,11 @@ Parsing/normalization:
 - The output CSVs use the provided `name` values.
 - Numeric channel strings (e.g. `"01"`) are normalized to canonical decimal
   strings for channel-based acceptors; `"01"` and `1` are treated as the same
-  channel. Non-numeric channel strings are allowed for genealogical
-  `seen = "channel"` but are rejected when `channel_pairs` is used.
+  channel. Non-numeric channel strings are allowed for both genealogical
+  `seen = "channel"` and `channel_pairs`.
+- Channel ids are assigned by sorting `ChannelId` values (all numeric channels
+  ascending, then named channels in lexicographic order). This mapping is used
+  by channel-based acceptors and is deterministic across runs.
 
 Vars handling:
 - `vars` is carried into output reporting.
@@ -66,6 +69,10 @@ Optional keys:
 - `adjacency_mode = "forbid"`: listed pairs are forbidden; all others allowed.
 - If `adjacency_mode = "allow"` and `adjacency_pairs` is empty, parsing fails.
 - Unknown letter names in `adjacency_pairs` cause a parse error.
+
+#### `[engine]` (optional)
+Optional keys:
+- `sample_table` (string; default `"default"`)
 
 #### `[constraints.budget]` (optional)
 All keys are optional; omitted keys mean "no limit":
@@ -123,11 +130,10 @@ Validation:
 3) `kind = "channel_pairs"`
 - `mode` (`"allowed"` or `"forbidden"`)
 - `symmetric` (bool, optional; default `false`)
-- `pairs` (array of `[u16, u16]`)
+- `pairs` (array of `[channel, channel]`; channel is string or integer)
 
 Validation:
 - All letters must define `channel` when `channel_pairs` is used.
-- Channel values must be numeric (`u16`) or parseable from strings.
 - `mode = "allowed"` with empty `pairs` is an error (`InvalidSpecEmptyAllowList`).
 
 Example:
@@ -136,8 +142,15 @@ Example:
 kind = "channel_pairs"
 mode = "forbidden"
 symmetric = true
-pairs = [[0, 0], [1, 1]]
+pairs = [["A", "A"], ["B", "B"]]
 ```
+
+#### `[engine]` (optional)
+Optional keys:
+- `sample_table` (string; default `"default"`)
+
+`sample_table` selects the deterministic sample table used by the space engine.
+Supported values: `"default"`.
 
 #### `[pairs]` (optional)
 Optional keys:
@@ -156,6 +169,8 @@ When omitted, the runner still computes pairs using the
 - `pairs_by_weight.csv`
 - `triplets.csv`
 - `triplets_by_weight.csv`
+- `forbidden_pairs.csv`
+- `genealogical_rules.json`
 - `topology_metrics.csv`
 - `skeleton2_metrics.csv`
 
@@ -175,8 +190,8 @@ w=<weight> <BasisStats::one_line()> status=<ok|err> [error_code=<Code>]
 `BasisStats::one_line()` fields (in order):
 ```
 ncols, dim, rank, rows_attempted, rows_inserted, samples_used, envs_total,
-rows_skipped_singular, constraints_insufficient_samples, vars, max_row_nnz,
-avg_row_nnz
+sample_table, rows_skipped_singular, constraints_insufficient_samples, vars,
+max_row_nnz, avg_row_nnz
 ```
 
 `error_code` is only present when status is `err`.
@@ -184,7 +199,7 @@ avg_row_nnz
 ### `dim_vs_w.csv`
 Header (exact column order):
 ```
-weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error
+weight,n_words_allowed,dim,rank,rows_attempted,rows_inserted,samples_used,envs_total,sample_table,rows_skipped_singular,constraints_insufficient_samples,vars,max_row_nnz,avg_row_nnz,status,error_code,error
 ```
 
 Row semantics:
@@ -193,6 +208,7 @@ Row semantics:
 - `avg_row_nnz` is `sum_row_nnz / rows_inserted` (integer division), or `0` when
   `rows_inserted == 0`.
 - `vars` is the comma-joined list from the report; it may be empty.
+- `sample_table` is the deterministic sample table identifier.
 - `error` equals `error_code` (CSV-escaped); empty on `ok`.
 
 ### `pairs.csv`
@@ -248,6 +264,41 @@ Definition:
 
 Ordering:
 - Sorted by `weight`, then `(a,b,c)`.
+
+### `forbidden_pairs.csv`
+Header:
+```
+lhs,rhs
+```
+
+Definition:
+- Computes support words `S` as the set of active words (columns with any nonzero
+  coefficient in the basis), aggregated across successful weights.
+- `observed(A->B)` is true if there exists a support word with `A` at position
+  `i` and `B` at position `j > i` (not necessarily adjacent).
+- `forbidden_pairs` lists all `(A,B)` pairs with `observed(A->B) == false`.
+
+Keying:
+- If all letters have a non-empty `channel`, pairs are computed on channels.
+- Otherwise pairs are computed on letter names.
+
+Ordering:
+- Sorted by `(lhs, rhs)` in lexicographic order.
+
+### `genealogical_rules.json`
+Deterministic metadata for `forbidden_pairs.csv`:
+```
+{
+  "kind": "channel" | "letter",
+  "method": "space_support_subsequence",
+  "weight_min": <integer>,
+  "weight_max": <integer>,
+  "n_support_words": <integer>,
+  "channels" | "letters": ["..."],
+  "forbidden_pairs": [["A","B"], ...],
+  "notes": "A->B forbidden means: no support word contains A at position i and B at position j>i"
+}
+```
 
 ### `topology_metrics.csv`
 Header (exact column order):

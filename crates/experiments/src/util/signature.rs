@@ -1,55 +1,43 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use crate::output::single::{
+    render_basis_stats, render_count_only, render_dim_vs_w, render_forbidden_pairs,
+    render_genealogical_rules, render_pairs, render_pairs_by_weight, render_skeleton2_metrics,
+    render_topology_metrics, render_triplets, render_triplets_by_weight,
+};
+use crate::run::count::CountReport;
+use crate::run::single::ExperimentReport;
 
-use crate::util::sanitize::sanitize_layer_name;
-use crate::ExperimentError;
-
-const FULL_RUN_FILES: &[&str] = &[
-    "basis_stats.txt",
-    "dim_vs_w.csv",
-    "pairs.csv",
-    "pairs_by_weight.csv",
-    "triplets.csv",
-    "triplets_by_weight.csv",
-    "topology_metrics.csv",
-    "skeleton2_metrics.csv",
-];
-const COUNT_ONLY_FILES: &[&str] = &["counts_only.csv"];
-
-pub(crate) fn read_signature(out_dir: &Path, full_run: bool) -> Result<String, ExperimentError> {
-    let files = if full_run {
-        FULL_RUN_FILES
-    } else {
-        COUNT_ONLY_FILES
-    };
-    build_signature(out_dir, files)
+pub(crate) fn signature_from_count_report(report: &CountReport) -> String {
+    let entries = vec![("counts_only.csv", render_count_only(report))];
+    build_signature_from_entries(entries)
 }
 
-pub(crate) fn filtration_temp_dir(
-    spec_name: &str,
-    layer_index: usize,
-    weight: usize,
-    repeat_idx: usize,
-) -> PathBuf {
-    let mut path = std::env::temp_dir();
-    path.push("mpl_experiments_filtration");
-    path.push(sanitize_layer_name(spec_name));
-    path.push(format!("{layer_index}_{weight}_{repeat_idx}"));
-    path
+pub(crate) fn signature_from_full_report(report: &ExperimentReport) -> String {
+    let entries = vec![
+        ("basis_stats.txt", render_basis_stats(report)),
+        ("dim_vs_w.csv", render_dim_vs_w(report)),
+        ("pairs.csv", render_pairs(report)),
+        ("pairs_by_weight.csv", render_pairs_by_weight(report)),
+        ("triplets.csv", render_triplets(report)),
+        ("triplets_by_weight.csv", render_triplets_by_weight(report)),
+        ("forbidden_pairs.csv", render_forbidden_pairs(report)),
+        ("genealogical_rules.json", render_genealogical_rules(report)),
+        ("topology_metrics.csv", render_topology_metrics(report)),
+        ("skeleton2_metrics.csv", render_skeleton2_metrics(report)),
+    ];
+    build_signature_from_entries(entries)
 }
 
-fn build_signature(out_dir: &Path, files: &[&str]) -> Result<String, ExperimentError> {
-    let mut ordered: Vec<&str> = files.to_vec();
-    ordered.sort_unstable();
+fn build_signature_from_entries(mut entries: Vec<(&'static str, String)>) -> String {
+    // Signature uses the same render_* outputs as on-disk files and excludes paths/timestamps.
+    entries.sort_by(|(a, _), (b, _)| a.cmp(b));
     let mut out = String::new();
-    for file in ordered {
-        let content = fs::read_to_string(out_dir.join(file)).map_err(ExperimentError::Io)?;
+    for (file, content) in entries {
         out.push_str(file);
         out.push('\n');
         out.push_str(&normalize_newlines(&content));
         out.push('\n');
     }
-    Ok(out)
+    out
 }
 
 fn normalize_newlines(input: &str) -> String {

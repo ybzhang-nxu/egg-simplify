@@ -57,7 +57,7 @@ where
     let report = run_experiment(&cfg).map_err(|err| err.to_string())?;
     write_outputs(&report, &cfg.out_dir).map_err(|err| err.to_string())?;
     println!(
-        "wrote basis_stats.txt, dim_vs_w.csv, pairs.csv, pairs_by_weight.csv, triplets.csv, triplets_by_weight.csv, topology_metrics.csv, skeleton2_metrics.csv to {}",
+        "wrote basis_stats.txt, dim_vs_w.csv, pairs.csv, pairs_by_weight.csv, triplets.csv, triplets_by_weight.csv, forbidden_pairs.csv, genealogical_rules.json, topology_metrics.csv, skeleton2_metrics.csv to {}",
         cfg.out_dir.display()
     );
     Ok(())
@@ -96,10 +96,21 @@ where
     I: Iterator<Item = String>,
 {
     let mut spec_path: Option<PathBuf> = None;
+    let mut jobs: Option<usize> = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--spec" => {
                 spec_path = Some(PathBuf::from(next_value(&mut args, "--spec")?));
+            }
+            "--jobs" => {
+                let value = next_value(&mut args, "--jobs")?;
+                let parsed = value
+                    .parse::<usize>()
+                    .map_err(|_| format!("invalid --jobs value: {value}"))?;
+                if parsed == 0 {
+                    return Err("--jobs must be >= 1".to_string());
+                }
+                jobs = Some(parsed);
             }
             "--help" | "-h" => {
                 print_help();
@@ -112,7 +123,10 @@ where
     }
 
     let path = spec_path.ok_or_else(|| "missing --spec <path>".to_string())?;
-    let spec = load_filtration_spec(&path).map_err(|err| err.to_string())?;
+    let mut spec = load_filtration_spec(&path).map_err(|err| err.to_string())?;
+    if let Some(value) = jobs {
+        spec.jobs = Some(value);
+    }
     let report = run_filtration(&spec).map_err(|err| err.to_string())?;
     write_filtration_summary(&report, &spec.out_dir).map_err(|err| err.to_string())?;
     println!(
@@ -136,9 +150,10 @@ fn print_help() {
     println!("Usage:");
     println!("  mpl-experiments run --spec <path>");
     println!("  mpl-experiments count --spec <path>");
-    println!("  mpl-experiments filtration --spec <path>");
+    println!("  mpl-experiments filtration --spec <path> [--jobs N]");
     println!();
     println!("Options:");
     println!("  --spec <path>          Experiment TOML spec");
+    println!("  --jobs <n>             Filtration worker count");
     println!("  --help                 Show this help");
 }

@@ -81,6 +81,7 @@ fn golden_l1_a2_dim_rank_stats() {
         assert_eq!(actual_samples_used, samples_used);
         let actual_envs_total = parse_u64(value(&table, row, "envs_total"));
         assert_eq!(actual_envs_total, envs_total);
+        assert_eq!(value(&table, row, "sample_table"), "default");
         assert_eq!(parse_u64(value(&table, row, "max_row_nnz")), max_row_nnz);
         assert_eq!(parse_u64(value(&table, row, "rows_skipped_singular")), 0);
         assert_eq!(
@@ -220,6 +221,8 @@ fn determinism_l1_a2_outputs_are_identical() {
         "pairs_by_weight.csv",
         "topology_metrics.csv",
         "skeleton2_metrics.csv",
+        "forbidden_pairs.csv",
+        "genealogical_rules.json",
     ] {
         let b1 = fs::read(out_dir_1.join(name)).expect("read output 1");
         let b2 = fs::read(out_dir_2.join(name)).expect("read output 2");

@@ -15,6 +15,40 @@ fn prepare_dir(name: &str) -> PathBuf {
     path
 }
 
+fn collect_files(root: &Path) -> Vec<PathBuf> {
+    fn rec(root: &Path, dir: &Path, files: &mut Vec<PathBuf>) {
+        let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+            .expect("read dir")
+            .map(|entry| entry.expect("read dir entry").path())
+            .collect();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                rec(root, &path, files);
+            } else {
+                let rel = path.strip_prefix(root).expect("strip prefix").to_path_buf();
+                files.push(rel);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    rec(root, root, &mut files);
+    files.sort();
+    files
+}
+
+fn assert_dirs_equal(left: &Path, right: &Path) {
+    let left_files = collect_files(left);
+    let right_files = collect_files(right);
+    assert_eq!(left_files, right_files, "file lists differ");
+    for rel in left_files {
+        let left_bytes = fs::read(left.join(&rel)).expect("read left file");
+        let right_bytes = fs::read(right.join(&rel)).expect("read right file");
+        assert_eq!(left_bytes, right_bytes, "content mismatch for {rel:?}");
+    }
+}
+
 fn read_csv_table(path: &Path) -> CsvTable {
     let content = fs::read_to_string(path).expect("read csv");
     let mut lines = content.lines();
@@ -87,7 +121,7 @@ fn m6_spec_path(name: &str) -> PathBuf {
 
 #[test]
 fn m6_filtration_outputs_and_summary() {
-    const HEADER: &str = "layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,constraints_insufficient_samples";
+    const HEADER: &str = "layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,sample_table,constraints_insufficient_samples";
     let spec_path = m6_spec_path("M6_reg_filtration_chain_w3.toml");
     let mut spec = load_filtration_spec(&spec_path).expect("load filtration spec");
     let out_dir = prepare_dir("m6_filtration_chain");
@@ -124,6 +158,7 @@ fn m6_filtration_outputs_and_summary() {
         assert_eq!(value(&table, row, "mode"), "count_only");
         assert_eq!(value(&table, row, "status"), "ok");
         assert!(value(&table, row, "error_code").is_empty());
+        assert_eq!(value(&table, row, "sample_table"), "default");
         let count: u64 = value(&table, row, "n_words_allowed")
             .parse()
             .expect("parse n_words_allowed");
@@ -132,4 +167,25 @@ fn m6_filtration_outputs_and_summary() {
 
     let layer_dir = out_dir.join("layers").join("0_L0_integrability").join("w3");
     assert!(layer_dir.join("counts_only.csv").exists());
+}
+
+#[test]
+fn m6_filtration_jobs_are_deterministic() {
+    let spec_path = m6_spec_path("M6_reg_filtration_chain_w3.toml");
+    let mut spec = load_filtration_spec(&spec_path).expect("load filtration spec");
+
+    let out_dir_serial = prepare_dir("m6_filtration_jobs1");
+    spec.out_dir = out_dir_serial.clone();
+    spec.jobs = Some(1);
+    let report_serial = run_filtration(&spec).expect("run filtration (jobs=1)");
+    write_filtration_summary(&report_serial, &out_dir_serial).expect("write summary");
+
+    let out_dir_parallel = prepare_dir("m6_filtration_jobs4");
+    let mut spec_parallel = spec.clone();
+    spec_parallel.out_dir = out_dir_parallel.clone();
+    spec_parallel.jobs = Some(4);
+    let report_parallel = run_filtration(&spec_parallel).expect("run filtration (jobs=4)");
+    write_filtration_summary(&report_parallel, &out_dir_parallel).expect("write summary");
+
+    assert_dirs_equal(&out_dir_serial, &out_dir_parallel);
 }

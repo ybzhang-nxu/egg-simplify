@@ -1,12 +1,13 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 use mpl_experiments::{
     parse_spec_str, render_basis_stats, render_dim_vs_w, render_pairs, render_pairs_by_weight,
     render_skeleton2_metrics, render_topology_metrics, render_triplets, render_triplets_by_weight,
     run_experiment, toy_alphabet_xy, write_outputs, ErrorCode, ExperimentConfig, Status,
 };
-use mpl_symbol::space::{ConstraintBudget, WordConstraints};
+use mpl_symbol::space::{ConstraintBudget, SampleTable, WordConstraints};
 
 fn count_words(alpha_len: usize, constraints: &WordConstraints, weight: usize) -> usize {
     fn rec(
@@ -40,6 +41,67 @@ fn prepare_dir(name: &str) -> PathBuf {
     path
 }
 
+static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+struct EnvVarGuard {
+    key: &'static str,
+    prev: Option<String>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: Option<&str>) -> Self {
+        let prev = std::env::var(key).ok();
+        match value {
+            Some(value) => std::env::set_var(key, value),
+            None => std::env::remove_var(key),
+        }
+        Self { key, prev }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        match &self.prev {
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
+fn collect_files(root: &std::path::Path) -> Vec<PathBuf> {
+    fn rec(root: &std::path::Path, dir: &std::path::Path, files: &mut Vec<PathBuf>) {
+        let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+            .expect("read dir")
+            .map(|entry| entry.expect("read dir entry").path())
+            .collect();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                rec(root, &path, files);
+            } else {
+                let rel = path.strip_prefix(root).expect("strip prefix").to_path_buf();
+                files.push(rel);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    rec(root, root, &mut files);
+    files.sort();
+    files
+}
+
+fn assert_dirs_equal(left: &std::path::Path, right: &std::path::Path) {
+    let left_files = collect_files(left);
+    let right_files = collect_files(right);
+    assert_eq!(left_files, right_files, "file lists differ");
+    for rel in left_files {
+        let left_bytes = fs::read(left.join(&rel)).expect("read left file");
+        let right_bytes = fs::read(right.join(&rel)).expect("read right file");
+        assert_eq!(left_bytes, right_bytes, "content mismatch for {rel:?}");
+    }
+}
+
 #[test]
 fn toy_xy_dim_is_w_plus_1() {
     let cfg = ExperimentConfig {
@@ -55,6 +117,7 @@ fn toy_xy_dim_is_w_plus_1() {
         weight_min: 1,
         weight_max: 6,
         vars: Vec::new(),
+        sample_table: SampleTable::default(),
     };
 
     let report = run_experiment(&cfg).unwrap();
@@ -85,6 +148,7 @@ fn adjacency_constraint_removes_pair_and_matches_word_count() {
         weight_min: 3,
         weight_max: 3,
         vars: Vec::new(),
+        sample_table: SampleTable::default(),
     };
 
     let report = run_experiment(&cfg).unwrap();
@@ -124,6 +188,7 @@ fn outputs_are_deterministic() {
         weight_min: 2,
         weight_max: 4,
         vars: Vec::new(),
+        sample_table: SampleTable::default(),
     };
 
     let r1 = run_experiment(&cfg).unwrap();
@@ -140,6 +205,57 @@ fn outputs_are_deterministic() {
     );
     assert_eq!(render_topology_metrics(&r1), render_topology_metrics(&r2));
     assert_eq!(render_skeleton2_metrics(&r1), render_skeleton2_metrics(&r2));
+}
+
+#[test]
+fn outputs_are_deterministic_across_space_threads() {
+    let spec = r#"
+[experiment]
+id = "T_parallel_space_threads"
+out_dir = "reports/m1/T_parallel_space_threads"
+w_min = 2
+w_max = 3
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "(+ 1 x)"
+
+[[alphabet.letters]]
+name = "b"
+expr = "(+ 2 y)"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+"#;
+
+    let _lock = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
+    let _chunk_guard = EnvVarGuard::set("MPL_SPACE_CONTEXT_CHUNK", Some("4"));
+
+    let cfg = parse_spec_str(spec).unwrap();
+    let out_dir_serial = prepare_dir("space_threads_1");
+    let out_dir_parallel = prepare_dir("space_threads_8");
+
+    {
+        let _threads_guard = EnvVarGuard::set("MPL_SPACE_THREADS", Some("1"));
+        let mut cfg = cfg.clone();
+        cfg.out_dir = out_dir_serial.clone();
+        let report = run_experiment(&cfg).unwrap();
+        write_outputs(&report, &cfg.out_dir).unwrap();
+    }
+
+    {
+        let _threads_guard = EnvVarGuard::set("MPL_SPACE_THREADS", Some("8"));
+        let mut cfg = cfg.clone();
+        cfg.out_dir = out_dir_parallel.clone();
+        let report = run_experiment(&cfg).unwrap();
+        write_outputs(&report, &cfg.out_dir).unwrap();
+    }
+
+    assert_dirs_equal(&out_dir_serial, &out_dir_parallel);
 }
 
 #[test]

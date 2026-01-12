@@ -1,6 +1,6 @@
 [package]
 name = "mpl-rewrite"
-version = "0.1.2"
+version = "0.1.9"
 edition = "2021"
 
 [dependencies]
@@ -17,3 +17,4 @@ criterion = "0.5"
 name = "rewrite_simplify"
 harness = false
 path = "../../benches/rewrite_simplify.rs"
+

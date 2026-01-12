@@ -8,6 +8,31 @@ use crate::calculus::deriv;
 use crate::error::{EvalError, SymbolError};
 use crate::eval::eval;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum SampleTable {
+    #[default]
+    Default,
+}
+
+impl SampleTable {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SampleTable::Default => "default",
+        }
+    }
+}
+
+impl std::str::FromStr for SampleTable {
+    type Err = ();
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        match name {
+            "default" => Ok(SampleTable::Default),
+            _ => Err(()),
+        }
+    }
+}
+
 pub(crate) fn collect_vars(expr: &Expr, vars: &mut BTreeSet<String>) {
     match expr {
         Expr::Var(name) => {
@@ -26,6 +51,13 @@ pub(crate) fn collect_vars(expr: &Expr, vars: &mut BTreeSet<String>) {
 }
 
 pub(crate) fn build_envs(vars: &[String]) -> Vec<BTreeMap<String, Rational64>> {
+    build_envs_with_table(vars, SampleTable::Default)
+}
+
+pub(crate) fn build_envs_with_table(
+    vars: &[String],
+    table: SampleTable,
+) -> Vec<BTreeMap<String, Rational64>> {
     let values = [
         Rational64::new(2, 7),
         Rational64::new(3, 7),
@@ -35,7 +67,10 @@ pub(crate) fn build_envs(vars: &[String]) -> Vec<BTreeMap<String, Rational64>> {
         Rational64::new(5, 11),
     ];
     let mut envs = Vec::new();
-    for k in 0..5 {
+    let env_count = match table {
+        SampleTable::Default => 5,
+    };
+    for k in 0..env_count {
         let mut env = BTreeMap::new();
         for (j, var) in vars.iter().enumerate() {
             let value = values[(k + j) % values.len()];

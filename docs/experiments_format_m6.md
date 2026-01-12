@@ -32,6 +32,8 @@ Validation:
 ### `[engine]` (optional)
 Optional keys:
 - `full_run_max_words` (integer, optional)
+- `jobs` (integer >= 1, optional; worker count for per-layer/weight runs)
+- `sample_table` (string; default `"default"`)
 
 Optional sub-table:
 - `[engine.budget]` (same keys as M2 `[constraints.budget]`)
@@ -39,6 +41,8 @@ Optional sub-table:
 
 The `engine.budget` values are defaults. Layer-level
 `[layers.constraints.budget]` entries override them per layer.
+
+CLI note: `mpl-experiments filtration --jobs N` overrides `engine.jobs`.
 
 ### `repeats` (optional)
 If `repeats > 1`, the runner performs deterministic re-runs and compares
@@ -73,7 +77,8 @@ For each layer (in order) and each weight (ascending), the runner creates:
 Depending on the layer mode, the per-weight directory contains either:
 - Full run outputs (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`,
   `pairs_by_weight.csv`, `triplets.csv`, `triplets_by_weight.csv`,
-  `topology_metrics.csv`, `skeleton2_metrics.csv`), or
+  `forbidden_pairs.csv`, `genealogical_rules.json`, `topology_metrics.csv`,
+  `skeleton2_metrics.csv`), or
 - Count-only output (`counts_only.csv`).
 
 The runner also writes two top-level summary files:
@@ -83,7 +88,7 @@ The runner also writes two top-level summary files:
 ### `filtration_summary.csv`
 Header (exact column order):
 ```
-layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,constraints_insufficient_samples
+layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,sample_table,constraints_insufficient_samples
 ```
 
 Semantics:
@@ -98,4 +103,3 @@ Deterministic, human-readable summary:
 - Layer list (name + mode).
 - Table of `n_words_allowed` and `dim` per layer/weight.
 - Explicit failure list (if any).
-

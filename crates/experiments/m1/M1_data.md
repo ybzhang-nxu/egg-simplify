@@ -1,4 +1,4 @@
-﻿# M1 Data Pack (v0.1.6)
+﻿# M1 Data Pack (v0.1.9)
 
 This folder contains 4 reproducible dataset specs for the file-driven M1 runner.
 Each spec is a single TOML file that can be passed to:
@@ -13,8 +13,11 @@ The runner reads the spec and produces (per dataset):
 - `dim_vs_w.csv`
 - `pairs.csv` (aggregated across weights)
 - `pairs_by_weight.csv` (per weight)
-- `triplets.csv` / `triplets_by_weight.csv` (additive in M2; M1 outputs unchanged)
+- `triplets.csv` / `triplets_by_weight.csv`
+- `forbidden_pairs.csv`
+- `genealogical_rules.json`
 - `topology_metrics.csv`
+- `skeleton2_metrics.csv`
 
 Scope: M1 uses only `Alphabet` + `WordConstraints` (first-entry + adjacency)
 and builds integrable bases via `build_integrable_basis`. Triplets / genealogical
@@ -37,7 +40,12 @@ reports/m1/
     dim_vs_w.csv
     pairs.csv
     pairs_by_weight.csv
+    triplets.csv
+    triplets_by_weight.csv
+    forbidden_pairs.csv
+    genealogical_rules.json
     topology_metrics.csv
+    skeleton2_metrics.csv
 ```
 
 ---
@@ -191,3 +199,4 @@ Topology semantics (M1 default):
 | `L2_Dixon_Sprime_Steinmann.toml` | `L2_Dixon_Sprime_Steinmann` | 6 | u,v,w | 1..8 | literature Steinmann/ES forbidden pairs |
 | `L3_Hexagon_Su_rational_subset.toml` | `L3_Hexagon_Su_rational_subset` | 6 | u,v,w | 1..6 | hexagon baseline (first-entry only) |
 | `R1_rand_affine_seed20260107.toml` | `R1_rand_affine_seed20260107` | 6 | x,y | 1..12 | deterministic synthetic control |
+

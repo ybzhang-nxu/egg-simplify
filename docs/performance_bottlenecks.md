@@ -23,6 +23,17 @@ This is expected given the current algorithm:
 - We generate constraint rows for each context and variable pair.
 - We stream rows into a REF/dictionary elimination structure (no global RREF).
 
+## Recent Count-Phase Optimization (R2)
+
+Count-only and filtration runs now reuse a compiled acceptor graph and an
+incremental DP cache across weights. This removes repeated graph construction
+and per-weight DP recomputation for a fixed layer/acceptor.
+
+Behavior is unchanged (same budgets, errors, and CSV outputs), but counting
+should scale roughly with the weight range length instead of rebuilding for
+each weight. If count-only is still slow, the acceptor step or constraint
+evaluation is likely dominating.
+
 ## What to Record When It Hits
 
 Capture these fields from `dim_vs_w.csv` and `basis_stats.txt`:
@@ -57,3 +68,9 @@ Longer-term (design constraints apply):
 
 For `ncols ~= 50,000`, basis construction becomes the dominant cost even when
 word counting is fast. Use count-only or budgeted runs for higher weights.
+
+## Example Timings (Local Debug)
+
+These are quick sanity checks, not benchmarks.
+- Windows, debug build, warm binary: `mpl_experiments.exe filtration --spec experiments/m6/M6_reg_filtration_chain_w3.toml`
+  (count-only layers, `w=3`, `repeats=2`) finished in ~0.079s wall time.

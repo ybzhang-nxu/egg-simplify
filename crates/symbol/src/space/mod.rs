@@ -3,33 +3,72 @@ use std::fmt;
 
 use mpl_ir::Expr;
 use num_traits::{One, Zero};
+use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 
 use crate::error::{ConstraintBudgetKind, SymbolError};
-use crate::integrability_utils::{build_envs, collect_vars, DlogCache};
+use crate::integrability_utils::{build_envs_with_table, collect_vars, DlogCache};
 use crate::{Coeff, Symbol, Word};
 
 mod acceptor;
 mod stats;
+pub use crate::integrability_utils::SampleTable;
 pub use acceptor::{
     And, ChannelPairsAcceptor, ChannelPairsMode, ConstraintBudget, GenealogicalAcceptor,
     GenealogicalRule, KGramAcceptor, KGramMode, WordAcceptor, WordConstraintsAcceptor,
 };
 pub use stats::BasisStats;
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ChannelId {
+    Numeric(u16),
+    Named(String),
+}
+
+impl ChannelId {
+    pub fn from_name(name: &str) -> Self {
+        match name.parse::<u16>() {
+            Ok(value) => ChannelId::Numeric(value),
+            Err(_) => ChannelId::Named(name.to_string()),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Alphabet {
     pub name: String,
     pub letters: Vec<Expr>,
     pub letter_names: Vec<String>,
+    pub channels: Vec<Option<ChannelId>>,
 }
 
 impl Alphabet {
     pub fn new(name: String, letters: Vec<Expr>, letter_names: Vec<String>) -> Self {
-        let letters = letters.into_iter().map(|expr| expr.normalize()).collect();
+        let letters: Vec<Expr> = letters.into_iter().map(|expr| expr.normalize()).collect();
+        let channels = vec![None; letters.len()];
         Self {
             name,
             letters,
             letter_names,
+            channels,
+        }
+    }
+
+    pub fn new_with_channels(
+        name: String,
+        letters: Vec<Expr>,
+        letter_names: Vec<String>,
+        mut channels: Vec<Option<ChannelId>>,
+    ) -> Self {
+        let letters: Vec<Expr> = letters.into_iter().map(|expr| expr.normalize()).collect();
+        if channels.len() != letters.len() {
+            channels.resize(letters.len(), None);
+        }
+        Self {
+            name,
+            letters,
+            letter_names,
+            channels,
         }
     }
 }
@@ -67,6 +106,173 @@ impl WordConstraints {
 
         true
     }
+}
+
+const DEFAULT_CONTEXT_CHUNK_SIZE: usize = 16;
+
+#[derive(Clone, Copy, Debug)]
+pub struct SpaceEngineConfig {
+    jobs: Option<usize>,
+    context_chunk_size: usize,
+    sample_table: SampleTable,
+}
+
+impl SpaceEngineConfig {
+    pub fn from_env() -> Self {
+        let jobs = std::env::var("MPL_SPACE_THREADS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|value| *value > 0);
+        let context_chunk_size = std::env::var("MPL_SPACE_CONTEXT_CHUNK")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(DEFAULT_CONTEXT_CHUNK_SIZE);
+        Self {
+            jobs,
+            context_chunk_size,
+            sample_table: SampleTable::default(),
+        }
+    }
+
+    pub fn with_sample_table(mut self, sample_table: SampleTable) -> Self {
+        self.sample_table = sample_table;
+        self
+    }
+}
+
+struct SpaceEngineRunner {
+    pool: Option<rayon::ThreadPool>,
+    config: SpaceEngineConfig,
+}
+
+impl SpaceEngineRunner {
+    fn new(config: SpaceEngineConfig) -> Result<Self, SymbolError> {
+        let pool = match config.jobs {
+            Some(jobs) if jobs > 1 => Some(
+                ThreadPoolBuilder::new()
+                    .num_threads(jobs)
+                    .build()
+                    .map_err(|err| {
+                        SymbolError::NotImplemented(format!(
+                            "space engine thread pool error: {err}"
+                        ))
+                    })?,
+            ),
+            _ => None,
+        };
+        Ok(Self { pool, config })
+    }
+
+    fn install<T: Send>(&self, func: impl FnOnce() -> T + Send) -> T {
+        match &self.pool {
+            Some(pool) => pool.install(func),
+            None => func(),
+        }
+    }
+
+    fn parallel_enabled(&self) -> bool {
+        self.pool.is_some()
+    }
+
+    fn context_chunk_size(&self) -> usize {
+        self.config.context_chunk_size.max(1)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct WedgeCache {
+    values: Vec<Option<Coeff>>,
+    letter_len: usize,
+    var_pairs: Vec<(usize, usize)>,
+}
+
+impl WedgeCache {
+    fn new(
+        letters: &[Expr],
+        vars: &[String],
+        envs: &[BTreeMap<String, num_rational::Rational64>],
+        runner: &SpaceEngineRunner,
+    ) -> Result<Self, SymbolError> {
+        let var_pairs = build_var_pairs(vars);
+        let letter_len = letters.len();
+        let envs_len = envs.len();
+        if envs_len == 0 || letter_len == 0 || var_pairs.is_empty() {
+            return Ok(Self {
+                values: Vec::new(),
+                letter_len,
+                var_pairs,
+            });
+        }
+
+        let cache = DlogCache::new(letters, vars, envs)?;
+        let var_pairs_len = var_pairs.len();
+        let total = envs_len
+            .checked_mul(var_pairs_len)
+            .and_then(|value| value.checked_mul(letter_len))
+            .and_then(|value| value.checked_mul(letter_len))
+            .ok_or_else(|| SymbolError::NotImplemented("wedge cache size overflow".to_string()))?;
+        let mut values = vec![None; total];
+
+        let compute = |index: usize| -> Option<Coeff> {
+            let mut idx = index;
+            let b = idx % letter_len;
+            idx /= letter_len;
+            let a = idx % letter_len;
+            idx /= letter_len;
+            let var_pair_idx = idx % var_pairs_len;
+            let env_idx = idx / var_pairs_len;
+            let (vi, vj) = var_pairs[var_pair_idx];
+            let a_vi = cache.get(env_idx, a, vi)?;
+            let b_vj = cache.get(env_idx, b, vj)?;
+            let a_vj = cache.get(env_idx, a, vj)?;
+            let b_vi = cache.get(env_idx, b, vi)?;
+            Some(a_vi * b_vj - a_vj * b_vi)
+        };
+
+        if runner.parallel_enabled() {
+            runner.install(|| {
+                values.par_iter_mut().enumerate().for_each(|(index, slot)| {
+                    *slot = compute(index);
+                });
+            });
+        } else {
+            for (index, slot) in values.iter_mut().enumerate() {
+                *slot = compute(index);
+            }
+        }
+
+        Ok(Self {
+            values,
+            letter_len,
+            var_pairs,
+        })
+    }
+
+    fn var_pairs(&self) -> &[(usize, usize)] {
+        &self.var_pairs
+    }
+
+    fn get(&self, env_idx: usize, a: usize, b: usize, var_pair_idx: usize) -> Option<Coeff> {
+        if self.values.is_empty() {
+            return None;
+        }
+        let var_pairs_len = self.var_pairs.len();
+        let idx = (((env_idx * var_pairs_len + var_pair_idx) * self.letter_len + a)
+            * self.letter_len)
+            + b;
+        self.values.get(idx).copied().flatten()
+    }
+}
+
+fn build_var_pairs(vars: &[String]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for vi in 0..vars.len() {
+        for vj in (vi + 1)..vars.len() {
+            out.push((vi, vj));
+        }
+    }
+    out
 }
 
 #[derive(Clone, Debug)]
@@ -139,10 +345,48 @@ pub fn build_integrable_basis_with_acceptor_with_stats<A: WordAcceptor>(
     weight: usize,
     budget: Option<&ConstraintBudget>,
 ) -> Result<Basis, BasisBuildError> {
+    build_integrable_basis_with_acceptor_with_stats_config(
+        alpha,
+        acceptor,
+        weight,
+        budget,
+        SpaceEngineConfig::from_env(),
+    )
+}
+
+#[allow(clippy::result_large_err)]
+pub fn build_integrable_basis_with_acceptor_with_stats_and_table<A: WordAcceptor>(
+    alpha: &Alphabet,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+    sample_table: SampleTable,
+) -> Result<Basis, BasisBuildError> {
+    build_integrable_basis_with_acceptor_with_stats_config(
+        alpha,
+        acceptor,
+        weight,
+        budget,
+        SpaceEngineConfig::from_env().with_sample_table(sample_table),
+    )
+}
+
+#[allow(clippy::result_large_err)]
+pub(crate) fn build_integrable_basis_with_acceptor_with_stats_config<A: WordAcceptor>(
+    alpha: &Alphabet,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+    config: SpaceEngineConfig,
+) -> Result<Basis, BasisBuildError> {
+    let error_stats = BasisStats {
+        sample_table: config.sample_table,
+        ..Default::default()
+    };
     let words = enumerate_words_with_acceptor(alpha.letters.len(), acceptor, weight, budget)
         .map_err(|err| BasisBuildError {
             err,
-            stats: BasisStats::default(),
+            stats: error_stats.clone(),
         })?;
     let ncols = words.len();
     let letters = normalized_letters(alpha);
@@ -150,6 +394,7 @@ pub fn build_integrable_basis_with_acceptor_with_stats<A: WordAcceptor>(
     let mut stats = BasisStats {
         ncols,
         vars_count: vars.len(),
+        sample_table: config.sample_table,
         ..Default::default()
     };
 
@@ -177,47 +422,78 @@ pub fn build_integrable_basis_with_acceptor_with_stats<A: WordAcceptor>(
         });
     }
 
-    let envs = build_envs(&vars);
-    let cache = DlogCache::new(&letters, &vars, &envs).map_err(|err| BasisBuildError {
+    let envs = build_envs_with_table(&vars, config.sample_table);
+    let runner = SpaceEngineRunner::new(config).map_err(|err| BasisBuildError {
         err,
         stats: stats.clone(),
     })?;
+    let cache =
+        WedgeCache::new(&letters, &vars, &envs, &runner).map_err(|err| BasisBuildError {
+            err,
+            stats: stats.clone(),
+        })?;
     let mut pivot_rows: BTreeMap<usize, SparseRow> = BTreeMap::new();
     stats.envs_total = envs.len();
 
+    let var_pairs_len = cache.var_pairs().len();
     for k in 0..(weight - 1) {
         let contexts = build_contexts(&words, k);
-        for (_context, cols) in contexts {
-            for vi in 0..vars.len() {
-                for vj in (vi + 1)..vars.len() {
-                    let mut valid = 0;
-                    for env_idx in 0..envs.len() {
+        let context_entries: Vec<ContextEntry> = contexts
+            .into_iter()
+            .enumerate()
+            .map(|(index, (_context, cols))| ContextEntry { index, cols })
+            .collect();
+        for chunk in context_entries.chunks(runner.context_chunk_size()) {
+            let mut chunk_results = if runner.parallel_enabled() {
+                runner.install(|| {
+                    chunk
+                        .par_iter()
+                        .map(|entry| {
+                            build_context_rows(
+                                entry.index,
+                                &entry.cols,
+                                &words,
+                                k,
+                                &cache,
+                                envs.len(),
+                                var_pairs_len,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            } else {
+                chunk
+                    .iter()
+                    .map(|entry| {
+                        build_context_rows(
+                            entry.index,
+                            &entry.cols,
+                            &words,
+                            k,
+                            &cache,
+                            envs.len(),
+                            var_pairs_len,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            chunk_results.sort_by_key(|entry| entry.index);
+            for entry in chunk_results {
+                for var_rows in entry.var_rows {
+                    if var_rows.valid_count < 2 {
+                        stats.constraints_insufficient_samples += 1;
+                        return Err(BasisBuildError {
+                            err: SymbolError::InsufficientSamples,
+                            stats,
+                        });
+                    }
+                    for env_row in var_rows.rows {
                         stats.rows_attempted += 1;
-                        let mut row = SparseRow::new();
-                        let mut invalid = false;
-                        for &col in &cols {
-                            let word = &words[col];
-                            let a = word[k];
-                            let b = word[k + 1];
-                            let wedge =
-                                wedge_from_cache_stats(&cache, env_idx, a, b, vi, vj, &mut stats);
-                            let wedge = match wedge {
-                                Some(value) => value,
-                                None => {
-                                    invalid = true;
-                                    break;
-                                }
-                            };
-                            if !wedge.is_zero() {
-                                row.insert(col, wedge);
-                            }
-                        }
-
-                        if invalid {
+                        apply_wedge_stats(&mut stats, env_row.wedge_hits, env_row.wedge_misses);
+                        let Some(row) = env_row.row else {
                             stats.rows_skipped_singular += 1;
                             continue;
-                        }
-                        valid += 1;
+                        };
                         stats.samples_used += 1;
                         if !row.is_empty() {
                             if let Some(nnz) = insert_row(&mut pivot_rows, row) {
@@ -228,15 +504,6 @@ pub fn build_integrable_basis_with_acceptor_with_stats<A: WordAcceptor>(
                                 }
                             }
                         }
-                    }
-
-                    if valid < 2 {
-                        stats.constraints_insufficient_samples += 1;
-                        let _ = stats.constraints_insufficient_samples;
-                        return Err(BasisBuildError {
-                            err: SymbolError::InsufficientSamples,
-                            stats,
-                        });
                     }
                 }
             }
@@ -367,41 +634,41 @@ pub fn check_integrable_n(sym: &Symbol) -> Result<bool, SymbolError> {
         if vars.len() < 2 {
             continue;
         }
-        let envs = build_envs(&vars);
-        let cache = DlogCache::new(&letters, &vars, &envs)?;
+        let config = SpaceEngineConfig::from_env();
+        let envs = build_envs_with_table(&vars, config.sample_table);
+        let runner = SpaceEngineRunner::new(config)?;
+        let cache = WedgeCache::new(&letters, &vars, &envs, &runner)?;
+        let var_pairs_len = cache.var_pairs().len();
 
         for k in 0..(weight - 1) {
             let contexts = build_contexts_terms(&term_ids, weight, k);
             for (_context, entries) in contexts {
-                for vi in 0..vars.len() {
-                    for vj in (vi + 1)..vars.len() {
-                        let mut valid = 0;
-                        for env_idx in 0..envs.len() {
-                            let mut invalid = false;
-                            let mut total = Coeff::zero();
-                            for entry in &entries {
-                                let wedge =
-                                    wedge_from_cache(&cache, env_idx, entry.a, entry.b, vi, vj);
-                                let wedge = match wedge {
-                                    Some(value) => value,
-                                    None => {
-                                        invalid = true;
-                                        break;
-                                    }
-                                };
-                                total += entry.coeff * wedge;
-                            }
-                            if invalid {
-                                continue;
-                            }
-                            valid += 1;
-                            if !total.is_zero() {
-                                return Ok(false);
-                            }
+                for var_pair_idx in 0..var_pairs_len {
+                    let mut valid = 0;
+                    for env_idx in 0..envs.len() {
+                        let mut invalid = false;
+                        let mut total = Coeff::zero();
+                        for entry in &entries {
+                            let wedge = cache.get(env_idx, entry.a, entry.b, var_pair_idx);
+                            let wedge = match wedge {
+                                Some(value) => value,
+                                None => {
+                                    invalid = true;
+                                    break;
+                                }
+                            };
+                            total += entry.coeff * wedge;
                         }
-                        if valid < 2 {
-                            return Err(SymbolError::InsufficientSamples);
+                        if invalid {
+                            continue;
                         }
+                        valid += 1;
+                        if !total.is_zero() {
+                            return Ok(false);
+                        }
+                    }
+                    if valid < 2 {
+                        return Err(SymbolError::InsufficientSamples);
                     }
                 }
             }
@@ -430,6 +697,31 @@ struct TermEntry {
     a: usize,
     b: usize,
     coeff: Coeff,
+}
+
+#[derive(Clone, Debug)]
+struct ContextEntry {
+    index: usize,
+    cols: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+struct ContextRows {
+    index: usize,
+    var_rows: Vec<VarPairRows>,
+}
+
+#[derive(Clone, Debug)]
+struct VarPairRows {
+    valid_count: usize,
+    rows: Vec<EnvRow>,
+}
+
+#[derive(Clone, Debug)]
+struct EnvRow {
+    row: Option<SparseRow>,
+    wedge_hits: u64,
+    wedge_misses: u64,
 }
 
 fn validate_constraints(
@@ -502,10 +794,117 @@ fn map_terms_to_ids(
     Ok(term_ids)
 }
 
-struct AcceptorGraph<S> {
+#[derive(Clone, Debug)]
+pub struct AcceptorGraph<S> {
     states: Vec<S>,
-    transitions: Vec<Vec<Option<usize>>>,
+    edges: Vec<Vec<(usize, usize)>>,
     start_state: usize,
+}
+
+#[derive(Clone, Debug)]
+struct GraphBuild<S> {
+    graph: AcceptorGraph<S>,
+    state_limit_exceeded_at: Option<usize>,
+    transition_limit_exceeded_at: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WordCountCache<'a, A: WordAcceptor> {
+    graph: AcceptorGraph<A::State>,
+    acceptor: &'a A,
+    dp: Vec<u64>,
+    len: usize,
+    totals: Vec<Result<u64, SymbolError>>,
+    budget: ConstraintBudget,
+    state_limit_exceeded_at: Option<usize>,
+    transition_limit_exceeded_at: Option<usize>,
+}
+
+impl<'a, A: WordAcceptor> WordCountCache<'a, A> {
+    pub fn new(graph: AcceptorGraph<A::State>, acceptor: &'a A, budget: ConstraintBudget) -> Self {
+        let dp = if graph.states.is_empty() {
+            Vec::new()
+        } else {
+            let mut dp = vec![0u64; graph.states.len()];
+            dp[graph.start_state] = 1;
+            dp
+        };
+        let total0 = if graph.states.is_empty() {
+            Ok(0)
+        } else {
+            sum_accepting(&graph, acceptor, 0, &dp, budget.max_words)
+        };
+        Self {
+            graph,
+            acceptor,
+            dp,
+            len: 0,
+            totals: vec![total0],
+            budget,
+            state_limit_exceeded_at: None,
+            transition_limit_exceeded_at: None,
+        }
+    }
+
+    pub fn count_exact_len(&mut self, w: usize) -> Result<u64, SymbolError> {
+        if let Some(err) = self.budget_error_for_weight(w) {
+            return Err(err);
+        }
+        if let Some(result) = self.totals.get(w) {
+            return result.clone();
+        }
+
+        while self.len < w {
+            self.dp = advance_counts(&self.graph, &self.dp);
+            self.len += 1;
+            let total = sum_accepting(
+                &self.graph,
+                self.acceptor,
+                self.len,
+                &self.dp,
+                self.budget.max_words,
+            );
+            self.totals.push(total);
+        }
+
+        self.totals.get(w).cloned().unwrap_or(Ok(0))
+    }
+
+    pub fn count_range(&mut self, w_min: usize, w_max: usize) -> Vec<Result<u64, SymbolError>> {
+        let mut out = Vec::with_capacity(w_max.saturating_sub(w_min) + 1);
+        for w in w_min..=w_max {
+            out.push(self.count_exact_len(w));
+        }
+        out
+    }
+
+    pub(crate) fn with_budget_limits(
+        mut self,
+        state_limit_exceeded_at: Option<usize>,
+        transition_limit_exceeded_at: Option<usize>,
+    ) -> Self {
+        self.state_limit_exceeded_at = state_limit_exceeded_at;
+        self.transition_limit_exceeded_at = transition_limit_exceeded_at;
+        self
+    }
+
+    fn budget_error_for_weight(&self, w: usize) -> Option<SymbolError> {
+        if let Some(depth) = self.state_limit_exceeded_at {
+            if w >= depth {
+                return Some(SymbolError::ConstraintBudgetExceeded(
+                    ConstraintBudgetKind::States,
+                ));
+            }
+        }
+        if let Some(depth) = self.transition_limit_exceeded_at {
+            if w >= depth {
+                return Some(SymbolError::ConstraintBudgetExceeded(
+                    ConstraintBudgetKind::Transitions,
+                ));
+            }
+        }
+        None
+    }
 }
 
 pub fn count_words_with_acceptor<A: WordAcceptor>(
@@ -514,7 +913,7 @@ pub fn count_words_with_acceptor<A: WordAcceptor>(
     weight: usize,
     budget: Option<&ConstraintBudget>,
 ) -> Result<u64, SymbolError> {
-    let graph = build_acceptor_graph(acceptor, alpha_len, weight, budget)?;
+    let graph = build_acceptor_graph(alpha_len, acceptor, weight, budget)?;
     let max_words = budget.and_then(|value| value.max_words);
     count_words_with_graph(&graph, acceptor, weight, max_words)
 }
@@ -525,7 +924,7 @@ fn enumerate_words_with_acceptor<A: WordAcceptor>(
     weight: usize,
     budget: Option<&ConstraintBudget>,
 ) -> Result<Vec<Vec<usize>>, SymbolError> {
-    let graph = build_acceptor_graph(acceptor, alpha_len, weight, budget)?;
+    let graph = build_acceptor_graph(alpha_len, acceptor, weight, budget)?;
     let max_words = budget.and_then(|value| value.max_words);
     let _ = count_words_with_graph(&graph, acceptor, weight, max_words)?;
     let mut out = Vec::new();
@@ -558,40 +957,80 @@ fn enumerate_words_rec<A: WordAcceptor>(
         return;
     }
 
-    for (next_letter, next_state) in graph.transitions[state_id].iter().enumerate() {
-        if let Some(next_id) = next_state {
-            current.push(next_letter);
-            enumerate_words_rec(graph, acceptor, weight, depth + 1, *next_id, current, out);
-            current.pop();
-        }
+    for (next_letter, next_id) in &graph.edges[state_id] {
+        current.push(*next_letter);
+        enumerate_words_rec(graph, acceptor, weight, depth + 1, *next_id, current, out);
+        current.pop();
     }
 }
 
-fn build_acceptor_graph<A: WordAcceptor>(
-    acceptor: &A,
+pub fn build_acceptor_graph<A: WordAcceptor>(
     alpha_len: usize,
+    acceptor: &A,
     weight: usize,
     budget: Option<&ConstraintBudget>,
 ) -> Result<AcceptorGraph<A::State>, SymbolError> {
-    let max_states = budget.and_then(|value| value.max_states);
-    let max_transitions = budget.and_then(|value| value.max_transitions);
-
-    let start_state = acceptor.start();
-    let mut seen: BTreeSet<A::State> = BTreeSet::new();
-    let mut frontier: BTreeSet<A::State> = BTreeSet::new();
-    seen.insert(start_state.clone());
-    frontier.insert(start_state.clone());
-
-    if let Some(limit) = max_states {
-        if seen.len() > limit {
+    let build = build_acceptor_graph_internal(alpha_len, acceptor, weight, budget)?;
+    if let Some(depth) = build.state_limit_exceeded_at {
+        if weight >= depth {
             return Err(SymbolError::ConstraintBudgetExceeded(
                 ConstraintBudgetKind::States,
             ));
         }
     }
+    if let Some(depth) = build.transition_limit_exceeded_at {
+        if weight >= depth {
+            return Err(SymbolError::ConstraintBudgetExceeded(
+                ConstraintBudgetKind::Transitions,
+            ));
+        }
+    }
+    Ok(build.graph)
+}
 
-    for _depth in 0..weight {
-        if frontier.is_empty() {
+pub fn build_word_count_cache<'a, A: WordAcceptor>(
+    alpha_len: usize,
+    acceptor: &'a A,
+    max_depth: usize,
+    budget: ConstraintBudget,
+) -> Result<WordCountCache<'a, A>, SymbolError> {
+    let build = build_acceptor_graph_internal(alpha_len, acceptor, max_depth, Some(&budget))?;
+    Ok(
+        WordCountCache::new(build.graph, acceptor, budget).with_budget_limits(
+            build.state_limit_exceeded_at,
+            build.transition_limit_exceeded_at,
+        ),
+    )
+}
+
+fn build_acceptor_graph_internal<A: WordAcceptor>(
+    alpha_len: usize,
+    acceptor: &A,
+    weight: usize,
+    budget: Option<&ConstraintBudget>,
+) -> Result<GraphBuild<A::State>, SymbolError> {
+    let max_states = budget.and_then(|value| value.max_states);
+    let max_transitions = budget.and_then(|value| value.max_transitions);
+
+    let start_state = acceptor.start();
+    let mut seen: BTreeSet<A::State> = BTreeSet::new();
+    let mut depths: BTreeMap<A::State, usize> = BTreeMap::new();
+    let mut frontier: BTreeSet<A::State> = BTreeSet::new();
+    let mut state_limit_exceeded_at = None;
+
+    seen.insert(start_state.clone());
+    depths.insert(start_state.clone(), 0);
+    frontier.insert(start_state.clone());
+
+    if let Some(limit) = max_states {
+        if seen.len() > limit {
+            state_limit_exceeded_at = Some(0);
+        }
+    }
+
+    let mut depth = 0usize;
+    while depth < weight {
+        if frontier.is_empty() || state_limit_exceeded_at.is_some() {
             break;
         }
         let mut next_frontier = BTreeSet::new();
@@ -601,19 +1040,27 @@ fn build_acceptor_graph<A: WordAcceptor>(
                     if seen.contains(&next_state) {
                         continue;
                     }
+                    let next_depth = depth + 1;
                     seen.insert(next_state.clone());
+                    depths.insert(next_state.clone(), next_depth);
                     if let Some(limit) = max_states {
                         if seen.len() > limit {
-                            return Err(SymbolError::ConstraintBudgetExceeded(
-                                ConstraintBudgetKind::States,
-                            ));
+                            state_limit_exceeded_at = Some(next_depth);
+                            break;
                         }
                     }
                     next_frontier.insert(next_state);
                 }
             }
+            if state_limit_exceeded_at.is_some() {
+                break;
+            }
+        }
+        if state_limit_exceeded_at.is_some() {
+            break;
         }
         frontier = next_frontier;
+        depth += 1;
     }
 
     let mut state_ids = BTreeMap::new();
@@ -631,37 +1078,52 @@ fn build_acceptor_graph<A: WordAcceptor>(
         }
     };
 
-    let mut transitions = Vec::with_capacity(states.len());
-    let mut transition_count: usize = 0;
+    let max_depth = depths.values().copied().max().unwrap_or(0);
+    let mut transitions_by_depth = vec![0usize; max_depth + 1];
+    let mut edges = Vec::with_capacity(states.len());
     for state in &states {
-        let mut row = Vec::with_capacity(alpha_len);
+        let depth_src = *depths.get(state).unwrap_or(&0);
+        let mut row = Vec::new();
         for next in 0..alpha_len {
             let next_state = acceptor.step(state, next);
             if let Some(next_state) = next_state {
                 if let Some(next_id) = state_ids.get(&next_state) {
-                    row.push(Some(*next_id));
-                    transition_count += 1;
-                    if let Some(limit) = max_transitions {
-                        if transition_count > limit {
-                            return Err(SymbolError::ConstraintBudgetExceeded(
-                                ConstraintBudgetKind::Transitions,
-                            ));
-                        }
+                    row.push((next, *next_id));
+                    let depth_dst = *depths.get(&next_state).unwrap_or(&0);
+                    let activation = if depth_src > depth_dst {
+                        depth_src
+                    } else {
+                        depth_dst
+                    };
+                    if let Some(entry) = transitions_by_depth.get_mut(activation) {
+                        *entry = entry.saturating_add(1);
                     }
-                } else {
-                    row.push(None);
                 }
-            } else {
-                row.push(None);
             }
         }
-        transitions.push(row);
+        edges.push(row);
     }
 
-    Ok(AcceptorGraph {
-        states,
-        transitions,
-        start_state,
+    let mut transition_limit_exceeded_at = None;
+    if let Some(limit) = max_transitions {
+        let mut total = 0usize;
+        for (depth, count) in transitions_by_depth.iter().enumerate() {
+            total = total.saturating_add(*count);
+            if total > limit {
+                transition_limit_exceeded_at = Some(depth);
+                break;
+            }
+        }
+    }
+
+    Ok(GraphBuild {
+        graph: AcceptorGraph {
+            states,
+            edges,
+            start_state,
+        },
+        state_limit_exceeded_at,
+        transition_limit_exceeded_at,
     })
 }
 
@@ -676,32 +1138,42 @@ fn count_words_with_graph<A: WordAcceptor>(
     }
 
     if weight == 0 {
-        let start = &graph.states[graph.start_state];
-        return Ok(if acceptor.is_accepting(start, 0) {
-            1
-        } else {
-            0
-        });
+        let mut current = vec![0u64; graph.states.len()];
+        current[graph.start_state] = 1;
+        return sum_accepting(graph, acceptor, 0, &current, max_words);
     }
 
-    let n_states = graph.states.len();
-    let mut current = vec![0u64; n_states];
+    let mut current = vec![0u64; graph.states.len()];
     current[graph.start_state] = 1;
 
     for _depth in 0..weight {
-        let mut next = vec![0u64; n_states];
-        for (state_id, count) in current.iter().enumerate() {
-            if *count == 0 {
-                continue;
-            }
-            for next_id in graph.transitions[state_id].iter().flatten() {
-                let updated = next[*next_id].saturating_add(*count);
-                next[*next_id] = updated;
-            }
-        }
-        current = next;
+        current = advance_counts(graph, &current);
     }
 
+    sum_accepting(graph, acceptor, weight, &current, max_words)
+}
+
+fn advance_counts<S>(graph: &AcceptorGraph<S>, current: &[u64]) -> Vec<u64> {
+    let mut next = vec![0u64; current.len()];
+    for (state_id, count) in current.iter().enumerate() {
+        if *count == 0 {
+            continue;
+        }
+        for (_letter, next_id) in &graph.edges[state_id] {
+            let updated = next[*next_id].saturating_add(*count);
+            next[*next_id] = updated;
+        }
+    }
+    next
+}
+
+fn sum_accepting<A: WordAcceptor>(
+    graph: &AcceptorGraph<A::State>,
+    acceptor: &A,
+    weight: usize,
+    current: &[u64],
+    max_words: Option<u64>,
+) -> Result<u64, SymbolError> {
     let mut total = 0u64;
     for (state_id, count) in current.iter().enumerate() {
         if *count == 0 {
@@ -719,7 +1191,6 @@ fn count_words_with_graph<A: WordAcceptor>(
             }
         }
     }
-
     Ok(total)
 }
 
@@ -763,56 +1234,69 @@ fn build_contexts_terms(
     contexts
 }
 
-fn wedge_from_cache(
-    cache: &DlogCache,
-    env_idx: usize,
-    a: usize,
-    b: usize,
-    vi: usize,
-    vj: usize,
-) -> Option<Coeff> {
-    let a_vi = cache.get(env_idx, a, vi)?;
-    let b_vj = cache.get(env_idx, b, vj)?;
-    let a_vj = cache.get(env_idx, a, vj)?;
-    let b_vi = cache.get(env_idx, b, vi)?;
-    Some(a_vi * b_vj - a_vj * b_vi)
-}
-
-fn wedge_from_cache_stats(
-    cache: &DlogCache,
-    env_idx: usize,
-    a: usize,
-    b: usize,
-    vi: usize,
-    vj: usize,
-    stats: &mut BasisStats,
-) -> Option<Coeff> {
-    let a_vi = cached_dlog_value(cache, env_idx, a, vi, stats)?;
-    let b_vj = cached_dlog_value(cache, env_idx, b, vj, stats)?;
-    let a_vj = cached_dlog_value(cache, env_idx, a, vj, stats)?;
-    let b_vi = cached_dlog_value(cache, env_idx, b, vi, stats)?;
-    stats.wedge_cache_hits += 1;
-    Some(a_vi * b_vj - a_vj * b_vi)
-}
-
-fn cached_dlog_value(
-    cache: &DlogCache,
-    env_idx: usize,
-    letter_idx: usize,
-    var_idx: usize,
-    stats: &mut BasisStats,
-) -> Option<Coeff> {
-    match cache.get(env_idx, letter_idx, var_idx) {
-        Some(value) => {
-            stats.dlog_cache_hits += 1;
-            Some(value)
+fn build_context_rows(
+    index: usize,
+    cols: &[usize],
+    words: &[Vec<usize>],
+    k: usize,
+    cache: &WedgeCache,
+    envs_len: usize,
+    var_pairs_len: usize,
+) -> ContextRows {
+    let mut var_rows = Vec::with_capacity(var_pairs_len);
+    for var_pair_idx in 0..var_pairs_len {
+        let mut rows = Vec::with_capacity(envs_len);
+        let mut valid_count = 0usize;
+        for env_idx in 0..envs_len {
+            let mut row = SparseRow::new();
+            let mut invalid = false;
+            let mut wedge_hits = 0u64;
+            let mut wedge_misses = 0u64;
+            for &col in cols {
+                let word = &words[col];
+                let a = word[k];
+                let b = word[k + 1];
+                match cache.get(env_idx, a, b, var_pair_idx) {
+                    Some(value) => {
+                        wedge_hits += 1;
+                        if !value.is_zero() {
+                            row.insert(col, value);
+                        }
+                    }
+                    None => {
+                        wedge_misses += 1;
+                        invalid = true;
+                        break;
+                    }
+                }
+            }
+            if invalid {
+                rows.push(EnvRow {
+                    row: None,
+                    wedge_hits,
+                    wedge_misses,
+                });
+            } else {
+                valid_count += 1;
+                rows.push(EnvRow {
+                    row: Some(row),
+                    wedge_hits,
+                    wedge_misses,
+                });
+            }
         }
-        None => {
-            stats.dlog_cache_misses += 1;
-            stats.wedge_cache_misses += 1;
-            None
-        }
+        var_rows.push(VarPairRows { valid_count, rows });
     }
+    ContextRows { index, var_rows }
+}
+
+fn apply_wedge_stats(stats: &mut BasisStats, wedge_hits: u64, wedge_misses: u64) {
+    stats.wedge_cache_hits = stats.wedge_cache_hits.saturating_add(wedge_hits);
+    stats.wedge_cache_misses = stats.wedge_cache_misses.saturating_add(wedge_misses);
+    stats.dlog_cache_hits = stats
+        .dlog_cache_hits
+        .saturating_add(wedge_hits.saturating_mul(4));
+    stats.dlog_cache_misses = stats.dlog_cache_misses.saturating_add(wedge_misses);
 }
 
 fn insert_row(pivot_rows: &mut BTreeMap<usize, SparseRow>, mut row: SparseRow) -> Option<usize> {

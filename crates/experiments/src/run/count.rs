@@ -4,10 +4,9 @@ use crate::build::acceptors::{
 };
 use crate::build::alphabet::normalize_inputs;
 use crate::build::constraints::validate_constraints;
-use crate::run::single::{
-    count_allowed_words_with_acceptor, error_code_from_symbol, ExperimentConfig,
-};
+use crate::run::single::{convert_word_count, error_code_from_symbol, ExperimentConfig};
 use crate::{ErrorCode, ExperimentError, Status};
+use mpl_symbol::space::build_word_count_cache;
 
 #[derive(Clone, Debug)]
 pub struct CountReport {
@@ -55,8 +54,30 @@ pub fn run_count_only(cfg: &ExperimentConfig) -> Result<CountReport, ExperimentE
     let budget = cfg.constraint_budget;
 
     let mut summaries = Vec::new();
-    for weight in cfg.weight_min..=cfg.weight_max {
-        match count_allowed_words_with_acceptor(alpha_len, &acceptor, weight, Some(&budget)) {
+    let mut cache = match build_word_count_cache(alpha_len, &acceptor, cfg.weight_max, budget) {
+        Ok(cache) => cache,
+        Err(err) => {
+            let code = error_code_from_symbol(&err);
+            for weight in cfg.weight_min..=cfg.weight_max {
+                summaries.push(CountSummary {
+                    weight,
+                    n_words_allowed: 0,
+                    status: Status::Err,
+                    error_code: Some(code),
+                });
+            }
+            return Ok(CountReport {
+                name: cfg.name.clone(),
+                weight_min: cfg.weight_min,
+                weight_max: cfg.weight_max,
+                summaries,
+            });
+        }
+    };
+
+    let results = cache.count_range(cfg.weight_min, cfg.weight_max);
+    for (weight, result) in (cfg.weight_min..=cfg.weight_max).zip(results) {
+        match result.and_then(convert_word_count) {
             Ok(count) => summaries.push(CountSummary {
                 weight,
                 n_words_allowed: count,

@@ -23,7 +23,7 @@ pub fn write_filtration_summary(
 
 pub fn render_filtration_summary_csv(report: &FiltrationReport) -> String {
     let mut writer = CsvWriter::new();
-    writer.push_raw("layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,constraints_insufficient_samples\n");
+    writer.push_raw("layer_index,layer_name,weight,mode,status,error_code,error,n_words_allowed,dim,rank,basis_ncols,rows_attempted,rows_inserted,samples_used,envs_total,sample_table,constraints_insufficient_samples\n");
     for row in &report.rows {
         let error_code = row.error_code.map(|code| code.as_str()).unwrap_or("");
         let dim = row.dim.map(|value| value.to_string()).unwrap_or_default();
@@ -69,6 +69,7 @@ pub fn render_filtration_summary_csv(report: &FiltrationReport) -> String {
             rows_inserted,
             samples_used,
             envs_total,
+            row.sample_table.as_str().to_string(),
             constraints_insufficient_samples,
         ]);
     }

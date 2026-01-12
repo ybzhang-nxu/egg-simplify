@@ -178,3 +178,48 @@ pairs = [[1, 2]]
     assert_eq!(summary.status, Status::Ok);
     assert_eq!(summary.n_words_allowed, 0);
 }
+
+#[test]
+fn channel_pairs_support_named_channels() {
+    let spec = r#"
+[experiment]
+id = "M4_named_channel_pairs"
+out_dir = "unused"
+w_min = 2
+w_max = 2
+
+[alphabet]
+vars = ["x"]
+
+[[alphabet.letters]]
+name = "a"
+expr = "x"
+channel = "A"
+
+[[alphabet.letters]]
+name = "b"
+expr = "x"
+channel = "B"
+
+[constraints]
+adjacency_mode = "forbid"
+adjacency_pairs = []
+
+[constraints.automaton]
+[[constraints.automaton.acceptors]]
+kind = "channel_pairs"
+mode = "forbidden"
+symmetric = true
+pairs = [["A", "B"]]
+"#;
+
+    let cfg = parse_spec_str(spec).expect("parse spec");
+    let report = run_count_only(&cfg).expect("count-only");
+    let summary = report
+        .summaries
+        .iter()
+        .find(|summary| summary.weight == 2)
+        .expect("weight=2 summary");
+    assert_eq!(summary.status, Status::Ok);
+    assert_eq!(summary.n_words_allowed, 2);
+}

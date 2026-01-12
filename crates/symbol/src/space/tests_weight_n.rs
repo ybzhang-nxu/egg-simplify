@@ -13,10 +13,12 @@ mod tests {
     use super::super::enumerate_words_with_acceptor;
     use crate::space::{
         build_integrable_basis, build_integrable_basis_with_acceptor,
-        build_integrable_basis_with_acceptor_with_stats, build_integrable_basis_with_stats,
-        check_integrable_n, count_words_with_acceptor, reduce_to_basis, Alphabet, And,
-        ConstraintBudget, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode,
-        WordAcceptor, WordConstraints, WordConstraintsAcceptor,
+        build_integrable_basis_with_acceptor_with_stats,
+        build_integrable_basis_with_acceptor_with_stats_config, build_integrable_basis_with_stats,
+        build_word_count_cache, check_integrable_n, count_words_with_acceptor, reduce_to_basis,
+        Alphabet, And, ChannelPairsAcceptor, ChannelPairsMode, ConstraintBudget,
+        GenealogicalAcceptor, GenealogicalRule, KGramAcceptor, KGramMode, SampleTable,
+        SpaceEngineConfig, WordAcceptor, WordConstraints, WordConstraintsAcceptor,
     };
 
     static PRINT_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -119,6 +121,41 @@ mod tests {
         eprintln!("\n{}", stats.one_line());
     }
 
+    fn assert_count_result(expected: Result<u64, SymbolError>, actual: Result<u64, SymbolError>) {
+        match (expected, actual) {
+            (Ok(left), Ok(right)) => assert_eq!(left, right),
+            (Err(left), Err(right)) => match (left, right) {
+                (
+                    SymbolError::ConstraintBudgetExceeded(a),
+                    SymbolError::ConstraintBudgetExceeded(b),
+                ) => {
+                    assert_eq!(a, b);
+                }
+                (SymbolError::NotImplemented(_), SymbolError::NotImplemented(_)) => {}
+                (SymbolError::Eval(_), SymbolError::Eval(_)) => {}
+                (SymbolError::InsufficientSamples, SymbolError::InsufficientSamples) => {}
+                (SymbolError::FuelExhausted, SymbolError::FuelExhausted) => {}
+                (left, right) => panic!("mismatched errors: {left:?} vs {right:?}"),
+            },
+            (left, right) => panic!("mismatched results: {left:?} vs {right:?}"),
+        }
+    }
+
+    fn assert_cache_matches_acceptor<A: WordAcceptor>(
+        alpha_len: usize,
+        acceptor: &A,
+        w_max: usize,
+        budget: ConstraintBudget,
+    ) {
+        let mut cache =
+            build_word_count_cache(alpha_len, acceptor, w_max, budget).expect("build cache");
+        for w in 0..=w_max {
+            let expected = count_words_with_acceptor(alpha_len, acceptor, w, Some(&budget));
+            let actual = cache.count_exact_len(w);
+            assert_count_result(expected, actual);
+        }
+    }
+
     fn multiset_words_xy(a: usize, b: usize, idx_x: usize, idx_y: usize) -> Vec<Vec<usize>> {
         fn rec(
             a: usize,
@@ -154,6 +191,7 @@ mod tests {
             name: "toy_xyz".to_string(),
             letters: vec![var("x"), var("y"), var("z")],
             letter_names: vec!["x".into(), "y".into(), "z".into()],
+            channels: vec![None; 3],
         }
     }
 
@@ -162,6 +200,7 @@ mod tests {
             name: "toy_xy".to_string(),
             letters: vec![var("x"), var("y")],
             letter_names: vec!["x".into(), "y".into()],
+            channels: vec![None; 2],
         }
     }
 
@@ -719,6 +758,29 @@ mod tests {
         assert!(!check_integrable_n(&sym).unwrap());
     }
 
+    #[ignore]
+    #[test]
+    fn perf_space_parallel_smoke_weight6_xyz() {
+        let alpha = toy_alphabet_xyz();
+        let c = no_constraints();
+        let acceptor = WordConstraintsAcceptor::new(&c);
+        let config = SpaceEngineConfig {
+            jobs: Some(8),
+            context_chunk_size: 8,
+            sample_table: SampleTable::default(),
+        };
+        let start = std::time::Instant::now();
+        let basis = build_integrable_basis_with_acceptor_with_stats_config(
+            &alpha, &acceptor, 6, None, config,
+        )
+        .unwrap();
+        eprintln!(
+            "perf_space_parallel_smoke_weight6_xyz: dim={} elapsed={:?}",
+            basis.stats().dim,
+            start.elapsed()
+        );
+    }
+
     #[test]
     fn constraints_affect_word_count_deterministically() {
         let alpha = toy_alphabet_xyz();
@@ -737,5 +799,65 @@ mod tests {
         let b2 = build_integrable_basis(&alpha, &c, 4).unwrap();
         assert_eq!(b.words, b2.words);
         assert_eq!(b.vectors, b2.vectors);
+    }
+
+    #[test]
+    fn count_range_matches_single_weight_counting() {
+        let alpha_len = 3usize;
+        let w_max = 6usize;
+
+        let mut allowed_pairs = vec![vec![true; alpha_len]; alpha_len];
+        allowed_pairs[0][0] = false;
+        let constraints = WordConstraints {
+            first_allowed: None,
+            allowed_pairs: Some(allowed_pairs),
+        };
+        let constraints_acceptor = WordConstraintsAcceptor::new(&constraints);
+
+        let kgram_forbidden = KGramAcceptor::new(KGramMode::Forbidden, vec![[0, 0, 0]]).unwrap();
+        let rules = vec![GenealogicalRule {
+            if_seen: 0,
+            forbid: vec![1],
+        }];
+        let genealogical = GenealogicalAcceptor::new(vec![0, 1, 2], 3, rules).unwrap();
+        let channel_pairs = ChannelPairsAcceptor::new(
+            vec![0, 1, 0],
+            ChannelPairsMode::Forbidden,
+            true,
+            vec![[0, 1]],
+        )
+        .unwrap();
+        let composite = And::new(
+            WordConstraintsAcceptor::new(&constraints),
+            KGramAcceptor::new(KGramMode::Forbidden, vec![[1, 1, 1]]).unwrap(),
+        );
+
+        let budgets = [
+            ConstraintBudget::default(),
+            ConstraintBudget {
+                max_words: Some(0),
+                ..Default::default()
+            },
+            ConstraintBudget {
+                max_words: Some(3),
+                ..Default::default()
+            },
+            ConstraintBudget {
+                max_states: Some(3),
+                ..Default::default()
+            },
+            ConstraintBudget {
+                max_transitions: Some(2),
+                ..Default::default()
+            },
+        ];
+
+        for budget in budgets {
+            assert_cache_matches_acceptor(alpha_len, &constraints_acceptor, w_max, budget);
+            assert_cache_matches_acceptor(alpha_len, &kgram_forbidden, w_max, budget);
+            assert_cache_matches_acceptor(alpha_len, &genealogical, w_max, budget);
+            assert_cache_matches_acceptor(alpha_len, &channel_pairs, w_max, budget);
+            assert_cache_matches_acceptor(alpha_len, &composite, w_max, budget);
+        }
     }
 }

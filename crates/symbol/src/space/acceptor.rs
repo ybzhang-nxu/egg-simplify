@@ -249,16 +249,16 @@ impl WordAcceptor for KGramAcceptor {
 pub struct ChannelPairsAcceptor {
     mode: ChannelPairsMode,
     symmetric: bool,
-    pairs: Vec<[u16; 2]>,
-    letter_to_channel: Vec<u16>,
+    pairs: Vec<[usize; 2]>,
+    letter_to_channel: Vec<usize>,
 }
 
 impl ChannelPairsAcceptor {
     pub fn new(
-        letter_to_channel: Vec<u16>,
+        letter_to_channel: Vec<usize>,
         mode: ChannelPairsMode,
         symmetric: bool,
-        mut pairs: Vec<[u16; 2]>,
+        mut pairs: Vec<[usize; 2]>,
     ) -> Result<Self, SymbolError> {
         if symmetric {
             for pair in &mut pairs {
@@ -293,7 +293,7 @@ impl ChannelPairsAcceptor {
 }
 
 impl WordAcceptor for ChannelPairsAcceptor {
-    type State = Option<u16>;
+    type State = Option<usize>;
 
     fn start(&self) -> Self::State {
         None

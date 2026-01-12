@@ -12,7 +12,9 @@ use crate::build::constraints::{
     build_budget, build_constraints, build_engine_budget, merge_budget, validate_constraints,
 };
 use crate::run::filtration::{FiltrationLayer, FiltrationMode, FiltrationSpec};
-use crate::spec::common::{SpecAlphabet, SpecConstraintBudget, SpecConstraints};
+use crate::spec::common::{
+    parse_sample_table, SpecAlphabet, SpecConstraintBudget, SpecConstraints,
+};
 use crate::ExperimentError;
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +38,8 @@ struct SpecWeights {
 pub(crate) struct SpecFiltrationEngine {
     pub(crate) budget: Option<SpecConstraintBudget>,
     pub(crate) full_run_max_words: Option<u64>,
+    pub(crate) jobs: Option<usize>,
+    pub(crate) sample_table: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,13 +79,25 @@ pub fn parse_filtration_spec_str(input: &str) -> Result<FiltrationSpec, Experime
         ));
     }
 
-    let (alphabet, letter_channels, name_to_idx) =
-        build_alphabet_from_spec(spec.id.clone(), &spec.alphabet)?;
+    let (alphabet, name_to_idx) = build_alphabet_from_spec(spec.id.clone(), &spec.alphabet)?;
     let engine_budget = build_engine_budget(spec.engine.as_ref());
+    let sample_table = parse_sample_table(
+        spec.engine
+            .as_ref()
+            .and_then(|engine| engine.sample_table.as_deref()),
+    )?;
     let full_run_max_words = spec
         .engine
         .as_ref()
         .and_then(|engine| engine.full_run_max_words);
+    let jobs = spec.engine.as_ref().and_then(|engine| engine.jobs);
+    if let Some(value) = jobs {
+        if value == 0 {
+            return Err(ExperimentError::InvalidConfig(
+                "engine.jobs must be >= 1".to_string(),
+            ));
+        }
+    }
 
     let mut seen_layer_names = std::collections::BTreeSet::new();
     let mut layers = Vec::with_capacity(spec.layers.len());
@@ -108,7 +124,7 @@ pub fn parse_filtration_spec_str(input: &str) -> Result<FiltrationSpec, Experime
         let mut budget = build_budget(&layer.constraints);
         budget = merge_budget(&engine_budget, &budget);
         let (genealogical_acceptors, kgram_acceptors, channel_pairs_acceptors, automaton_acceptors) =
-            build_automaton_acceptors(&layer.constraints, &name_to_idx, &letter_channels)?;
+            build_automaton_acceptors(&layer.constraints, &name_to_idx, &alphabet.channels)?;
 
         let layer_config = FiltrationLayer {
             name: layer.name,
@@ -144,6 +160,8 @@ pub fn parse_filtration_spec_str(input: &str) -> Result<FiltrationSpec, Experime
         vars: spec.alphabet.vars,
         repeats,
         full_run_max_words,
+        jobs,
+        sample_table,
         layers,
     })
 }

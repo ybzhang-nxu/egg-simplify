@@ -1,6 +1,6 @@
 [package]
 name = "mpl-ir"
-version = "0.1.1"
+version = "0.1.9"
 edition = "2021"
 
 [dependencies]
@@ -15,3 +15,4 @@ criterion = "0.5"
 name = "parse_normalize"
 harness = false
 path = "../../benches/parse_normalize.rs"
+

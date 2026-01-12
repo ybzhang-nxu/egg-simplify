@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mpl_symbol::space::{
-    ChannelPairsAcceptor, ChannelPairsMode, GenealogicalAcceptor, GenealogicalRule, KGramAcceptor,
-    KGramMode, WordAcceptor, WordConstraints, WordConstraintsAcceptor,
+    ChannelId, ChannelPairsAcceptor, ChannelPairsMode, GenealogicalAcceptor, GenealogicalRule,
+    KGramAcceptor, KGramMode, WordAcceptor, WordConstraints, WordConstraintsAcceptor,
 };
 
 use crate::spec::common::{SpecAutomatonAcceptor, SpecChannel, SpecConstraints};
@@ -149,31 +149,6 @@ impl WordAcceptor for CompositeAcceptor<'_> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum ChannelKey {
-    Numeric(u16),
-    Named(String),
-}
-
-impl ChannelKey {
-    fn from_spec(spec: &SpecChannel) -> Self {
-        match spec {
-            SpecChannel::Int(value) => ChannelKey::Numeric(*value),
-            SpecChannel::Text(value) => match value.parse::<u16>() {
-                Ok(num) => ChannelKey::Numeric(num),
-                Err(_) => ChannelKey::Named(value.clone()),
-            },
-        }
-    }
-
-    fn from_name(name: &str) -> Self {
-        match name.parse::<u16>() {
-            Ok(num) => ChannelKey::Numeric(num),
-            Err(_) => ChannelKey::Named(name.to_string()),
-        }
-    }
-}
-
 type AutomatonBuild = (
     Vec<GenealogicalAcceptor>,
     Vec<KGramAcceptor>,
@@ -184,7 +159,7 @@ type AutomatonBuild = (
 pub(crate) fn build_automaton_acceptors(
     spec: &SpecConstraints,
     name_to_idx: &BTreeMap<String, usize>,
-    letter_channels: &[Option<SpecChannel>],
+    letter_channels: &[Option<ChannelId>],
 ) -> Result<AutomatonBuild, ExperimentError> {
     const INVALID_SPEC_MISSING_CHANNEL: &str = "InvalidSpecMissingChannel";
     const INVALID_SPEC_UNKNOWN_MODE: &str = "InvalidSpecUnknownGenealogicalMode";
@@ -193,7 +168,6 @@ pub(crate) fn build_automaton_acceptors(
     const INVALID_SPEC_DUPLICATE_RULE: &str = "InvalidSpecDuplicateRule";
     const INVALID_SPEC_DUPLICATE_FORBID: &str = "InvalidSpecDuplicateForbid";
     const INVALID_SPEC_EMPTY_ALLOW_LIST: &str = "InvalidSpecEmptyAllowList";
-    const INVALID_SPEC_NON_NUMERIC_CHANNEL: &str = "InvalidSpecNonNumericChannel";
 
     let Some(automaton) = &spec.automaton else {
         return Ok((Vec::new(), Vec::new(), Vec::new(), Vec::new()));
@@ -203,19 +177,19 @@ pub(crate) fn build_automaton_acceptors(
     let mut kgrams = Vec::new();
     let mut channel_pairs = Vec::new();
     let mut order = Vec::new();
-    let mut channel_cache: Option<(BTreeMap<ChannelKey, usize>, Vec<usize>)> = None;
+    let mut channel_cache: Option<(BTreeMap<ChannelId, usize>, Vec<usize>)> = None;
 
     let acceptors = automaton.acceptors.as_deref().unwrap_or(&[]);
     for acceptor in acceptors {
         match acceptor {
             SpecAutomatonAcceptor::Genealogical { seen, rules } => {
                 let mode = seen.as_deref().unwrap_or("channel");
-                let mut channel_map: Option<&BTreeMap<ChannelKey, usize>> = None;
+                let mut channel_map: Option<&BTreeMap<ChannelId, usize>> = None;
                 let (letter_to_key, key_count) = match mode {
                     "channel" => {
                         if channel_cache.is_none() {
                             let (key_map, letter_to_channel) =
-                                build_channel_key_map(letter_channels)?;
+                                build_channel_id_map(letter_channels)?;
                             channel_cache = Some((key_map, letter_to_channel));
                         }
                         let (key_map, letter_to_channel) = match channel_cache.as_ref() {
@@ -381,27 +355,32 @@ pub(crate) fn build_automaton_acceptors(
                     )));
                 }
 
-                let (letter_to_channel, channel_ids) = build_channel_u16_map(
-                    letter_channels,
-                    INVALID_SPEC_MISSING_CHANNEL,
-                    INVALID_SPEC_NON_NUMERIC_CHANNEL,
-                )?;
-
-                for pair in pairs {
-                    for value in pair {
-                        if !channel_ids.contains(value) {
-                            return Err(ExperimentError::InvalidConfig(format!(
-                                "{INVALID_SPEC_UNKNOWN_CHANNEL}: {value}"
-                            )));
-                        }
+                if channel_cache.is_none() {
+                    channel_cache = Some(build_channel_id_map(letter_channels)?);
+                }
+                let (channel_map, letter_to_channel) = match channel_cache.as_ref() {
+                    Some(value) => value,
+                    None => {
+                        return Err(ExperimentError::InvalidConfig(format!(
+                            "{INVALID_SPEC_MISSING_CHANNEL}: channel map missing"
+                        )))
                     }
+                };
+
+                let mut mapped_pairs = Vec::with_capacity(pairs.len());
+                for pair in pairs {
+                    let a =
+                        resolve_channel_spec(&pair[0], channel_map, INVALID_SPEC_UNKNOWN_CHANNEL)?;
+                    let b =
+                        resolve_channel_spec(&pair[1], channel_map, INVALID_SPEC_UNKNOWN_CHANNEL)?;
+                    mapped_pairs.push([a, b]);
                 }
 
                 let acceptor = ChannelPairsAcceptor::new(
-                    letter_to_channel,
+                    letter_to_channel.clone(),
                     mode,
                     symmetric.unwrap_or(false),
-                    pairs.clone(),
+                    mapped_pairs,
                 )
                 .map_err(|err| {
                     ExperimentError::InvalidConfig(format!("channel_pairs acceptor error: {err}"))
@@ -415,9 +394,9 @@ pub(crate) fn build_automaton_acceptors(
     Ok((genealogical, kgrams, channel_pairs, order))
 }
 
-fn build_channel_key_map(
-    letter_channels: &[Option<SpecChannel>],
-) -> Result<(BTreeMap<ChannelKey, usize>, Vec<usize>), ExperimentError> {
+fn build_channel_id_map(
+    letter_channels: &[Option<ChannelId>],
+) -> Result<(BTreeMap<ChannelId, usize>, Vec<usize>), ExperimentError> {
     const INVALID_SPEC_MISSING_CHANNEL: &str = "InvalidSpecMissingChannel";
 
     let mut channel_keys = BTreeSet::new();
@@ -428,17 +407,15 @@ fn build_channel_key_map(
                 "{INVALID_SPEC_MISSING_CHANNEL}: missing channel on letter"
             )));
         };
-        match value {
-            SpecChannel::Text(text) if text.is_empty() => {
+        if let ChannelId::Named(name) = value {
+            if name.is_empty() {
                 return Err(ExperimentError::InvalidConfig(format!(
                     "{INVALID_SPEC_MISSING_CHANNEL}: empty channel on letter"
                 )));
             }
-            _ => {}
         }
-        let key = ChannelKey::from_spec(value);
-        channel_keys.insert(key.clone());
-        per_letter.push(key);
+        channel_keys.insert(value.clone());
+        per_letter.push(value.clone());
     }
 
     let mut key_map = BTreeMap::new();
@@ -459,45 +436,45 @@ fn build_channel_key_map(
     Ok((key_map, letter_to_key))
 }
 
-fn build_channel_u16_map(
-    letter_channels: &[Option<SpecChannel>],
-    missing_code: &str,
-    non_numeric_code: &str,
-) -> Result<(Vec<u16>, BTreeSet<u16>), ExperimentError> {
-    let mut channel_ids = BTreeSet::new();
-    let mut letter_to_channel = Vec::with_capacity(letter_channels.len());
-    for (idx, channel) in letter_channels.iter().enumerate() {
-        let Some(value) = channel else {
-            return Err(ExperimentError::InvalidConfig(format!(
-                "{missing_code}: missing channel on letter {idx}"
-            )));
-        };
-        let id = match value {
-            SpecChannel::Int(value) => *value,
-            SpecChannel::Text(text) => text.parse::<u16>().map_err(|_| {
-                ExperimentError::InvalidConfig(format!(
-                    "{non_numeric_code}: non-numeric channel on letter {idx}"
-                ))
-            })?,
-        };
-        channel_ids.insert(id);
-        letter_to_channel.push(id);
-    }
-    Ok((letter_to_channel, channel_ids))
-}
-
 fn resolve_channel_name(
     name: &str,
-    channel_map: Option<&BTreeMap<ChannelKey, usize>>,
+    channel_map: Option<&BTreeMap<ChannelId, usize>>,
     unknown_code: &str,
 ) -> Result<usize, ExperimentError> {
     let map = channel_map.ok_or_else(|| {
         ExperimentError::InvalidConfig("InvalidSpecMissingChannel: channel map missing".to_string())
     })?;
-    let key = ChannelKey::from_name(name);
+    let key = ChannelId::from_name(name);
     map.get(&key)
         .copied()
         .ok_or_else(|| ExperimentError::InvalidConfig(format!("{unknown_code}: {name}")))
+}
+
+fn resolve_channel_spec(
+    channel: &SpecChannel,
+    channel_map: &BTreeMap<ChannelId, usize>,
+    unknown_code: &str,
+) -> Result<usize, ExperimentError> {
+    let key = channel_id_from_spec(channel);
+    let label = channel_label(channel);
+    channel_map
+        .get(&key)
+        .copied()
+        .ok_or_else(|| ExperimentError::InvalidConfig(format!("{unknown_code}: {label}")))
+}
+
+fn channel_id_from_spec(channel: &SpecChannel) -> ChannelId {
+    match channel {
+        SpecChannel::Int(value) => ChannelId::Numeric(*value),
+        SpecChannel::Text(value) => ChannelId::from_name(value),
+    }
+}
+
+fn channel_label(channel: &SpecChannel) -> String {
+    match channel {
+        SpecChannel::Int(value) => value.to_string(),
+        SpecChannel::Text(value) => value.clone(),
+    }
 }
 
 fn resolve_letter_name(
@@ -595,4 +572,33 @@ pub(crate) fn validate_channel_pairs_acceptors(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_channel_id_map;
+    use mpl_symbol::space::ChannelId;
+
+    #[test]
+    fn channel_id_map_orders_numeric_then_named() {
+        let channels = vec![
+            Some(ChannelId::Named("B".to_string())),
+            Some(ChannelId::Numeric(2)),
+            Some(ChannelId::Named("A".to_string())),
+            Some(ChannelId::Numeric(10)),
+        ];
+
+        let (map, letter_to_key) = build_channel_id_map(&channels).expect("build map");
+        let keys: Vec<ChannelId> = map.keys().cloned().collect();
+        assert_eq!(
+            keys,
+            vec![
+                ChannelId::Numeric(2),
+                ChannelId::Numeric(10),
+                ChannelId::Named("A".to_string()),
+                ChannelId::Named("B".to_string()),
+            ]
+        );
+        assert_eq!(letter_to_key, vec![3, 0, 2, 1]);
+    }
 }

@@ -3,12 +3,12 @@ use std::fs;
 use std::path::Path;
 
 use mpl_ir::{parse_sexpr, Expr};
-use mpl_symbol::space::Alphabet;
+use mpl_symbol::space::{Alphabet, ChannelId};
 
 use crate::spec::common::{SpecAlphabet, SpecChannel};
 use crate::ExperimentError;
 
-pub(crate) type AlphabetBuildParts = (Alphabet, Vec<Option<SpecChannel>>, BTreeMap<String, usize>);
+pub(crate) type AlphabetBuildParts = (Alphabet, BTreeMap<String, usize>);
 
 pub(crate) fn build_alphabet_from_spec(
     name: String,
@@ -23,7 +23,7 @@ pub(crate) fn build_alphabet_from_spec(
     let mut letters = Vec::with_capacity(spec.letters.len());
     let mut names = Vec::with_capacity(spec.letters.len());
     let mut name_to_idx: BTreeMap<String, usize> = BTreeMap::new();
-    let mut channels: Vec<Option<SpecChannel>> = Vec::with_capacity(spec.letters.len());
+    let mut channels: Vec<Option<ChannelId>> = Vec::with_capacity(spec.letters.len());
 
     for (idx, letter) in spec.letters.iter().enumerate() {
         if name_to_idx.insert(letter.name.clone(), idx).is_some() {
@@ -37,16 +37,12 @@ pub(crate) fn build_alphabet_from_spec(
         })?;
         letters.push(expr.normalize());
         names.push(letter.name.clone());
-        channels.push(letter.channel.clone());
+        channels.push(letter.channel.as_ref().map(channel_id_from_spec));
     }
 
-    let alphabet = Alphabet {
-        name,
-        letters,
-        letter_names: names,
-    };
+    let alphabet = Alphabet::new_with_channels(name, letters, names, channels);
 
-    Ok((alphabet, channels, name_to_idx))
+    Ok((alphabet, name_to_idx))
 }
 
 pub fn toy_alphabet_xy() -> Alphabet {
@@ -54,6 +50,7 @@ pub fn toy_alphabet_xy() -> Alphabet {
         name: "toy_xy".to_string(),
         letters: vec![var("x"), var("y")],
         letter_names: vec!["x".to_string(), "y".to_string()],
+        channels: vec![None; 2],
     }
 }
 
@@ -62,6 +59,7 @@ pub fn toy_alphabet_xyz() -> Alphabet {
         name: "toy_xyz".to_string(),
         letters: vec![var("x"), var("y"), var("z")],
         letter_names: vec!["x".to_string(), "y".to_string(), "z".to_string()],
+        channels: vec![None; 3],
     }
 }
 
@@ -112,10 +110,12 @@ pub fn alphabet_from_file(path: &Path) -> Result<Alphabet, ExperimentError> {
         .unwrap_or("alphabet")
         .to_string();
 
+    let channels = vec![None; letters.len()];
     Ok(Alphabet {
         name,
         letters,
         letter_names: names,
+        channels,
     })
 }
 
@@ -133,11 +133,17 @@ pub(crate) fn normalize_inputs(
             .collect()
     };
 
+    let mut channels = alphabet.channels.clone();
+    if channels.len() != letters.len() {
+        channels.resize(letters.len(), None);
+    }
+
     (
         Alphabet {
             name: alphabet.name.clone(),
             letters,
             letter_names: names,
+            channels,
         },
         constraints.clone(),
     )
@@ -191,4 +197,11 @@ fn split_name_expr(line: &str) -> (Option<String>, &str) {
         return (Some(name.trim().to_string()), expr.trim());
     }
     (None, line)
+}
+
+fn channel_id_from_spec(channel: &SpecChannel) -> ChannelId {
+    match channel {
+        SpecChannel::Int(value) => ChannelId::Numeric(*value),
+        SpecChannel::Text(value) => ChannelId::from_name(value),
+    }
 }

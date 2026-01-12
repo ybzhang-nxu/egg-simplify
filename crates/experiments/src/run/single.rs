@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use mpl_symbol::space::{
-    build_integrable_basis_with_acceptor_with_stats, count_words_with_acceptor, Alphabet, Basis,
-    BasisStats, WordAcceptor, WordConstraints,
+    build_integrable_basis_with_acceptor_with_stats_and_table, count_words_with_acceptor, Alphabet,
+    Basis, BasisStats, ChannelId, SampleTable, WordAcceptor, WordConstraints,
 };
 use mpl_symbol::SymbolError;
 use num_traits::Zero;
@@ -12,7 +12,7 @@ use crate::build::acceptors::{
     validate_automaton_order, validate_channel_pairs_acceptors, validate_genealogical_acceptors,
     validate_kgram_acceptors, AutomatonAcceptorRef, CompositeAcceptor,
 };
-use crate::build::alphabet::{collect_vars_from_letters, normalize_inputs};
+use crate::build::alphabet::{collect_vars_from_letters, letter_display_names, normalize_inputs};
 use crate::build::constraints::validate_constraints;
 use crate::{ErrorCode, ExperimentError, Status};
 
@@ -30,6 +30,7 @@ pub struct ExperimentConfig {
     pub weight_min: usize,
     pub weight_max: usize,
     pub vars: Vec<String>,
+    pub sample_table: SampleTable,
 }
 
 #[derive(Clone, Debug)]
@@ -40,11 +41,38 @@ pub struct ExperimentReport {
     pub weight_min: usize,
     pub weight_max: usize,
     pub vars: Vec<String>,
+    pub genealogical: GenealogicalReport,
     pub summaries: Vec<WeightSummary>,
     pub pairs_total: BTreeMap<(usize, usize), u64>,
     pub pairs_by_weight: BTreeMap<usize, BTreeMap<(usize, usize), u64>>,
     pub triplets_total: BTreeMap<(usize, usize, usize), u64>,
     pub triplets_by_weight: BTreeMap<usize, BTreeMap<(usize, usize, usize), u64>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenealogicalKind {
+    Channel,
+    Letter,
+}
+
+impl GenealogicalKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Channel => "channel",
+            Self::Letter => "letter",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GenealogicalReport {
+    pub kind: GenealogicalKind,
+    pub method: &'static str,
+    pub weight_min: usize,
+    pub weight_max: usize,
+    pub n_support_words: usize,
+    pub keys: Vec<String>,
+    pub forbidden_pairs: BTreeSet<(usize, usize)>,
 }
 
 #[derive(Clone, Debug)]
@@ -74,10 +102,25 @@ pub struct TopologyMetrics {
 }
 
 pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, ExperimentError> {
+    run_experiment_with_counts(cfg, None)
+}
+
+pub(crate) fn run_experiment_with_counts(
+    cfg: &ExperimentConfig,
+    counts: Option<&[Result<usize, SymbolError>]>,
+) -> Result<ExperimentReport, ExperimentError> {
     if cfg.weight_min > cfg.weight_max {
         return Err(ExperimentError::InvalidConfig(
             "weight_min must be <= weight_max".to_string(),
         ));
+    }
+    if let Some(counts) = counts {
+        let expected = cfg.weight_max.saturating_sub(cfg.weight_min) + 1;
+        if counts.len() != expected {
+            return Err(ExperimentError::InvalidConfig(
+                "precount length mismatch".to_string(),
+            ));
+        }
     }
 
     let (alphabet, constraints) = normalize_inputs(&cfg.alphabet, &cfg.constraints);
@@ -103,6 +146,7 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
     let mut triplets_total: BTreeMap<(usize, usize, usize), u64> = BTreeMap::new();
     let mut triplets_by_weight: BTreeMap<usize, BTreeMap<(usize, usize, usize), u64>> =
         BTreeMap::new();
+    let mut genealogical = GenealogicalState::new(&alphabet);
     let alpha_len = alphabet.letters.len();
     let acceptor = CompositeAcceptor::new(
         &constraints,
@@ -112,42 +156,69 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
         &cfg.channel_pairs_acceptors,
     );
     let budget = cfg.constraint_budget;
+    let sample_table = cfg.sample_table;
 
     for weight in cfg.weight_min..=cfg.weight_max {
-        let n_words_allowed =
-            match count_allowed_words_with_acceptor(alpha_len, &acceptor, weight, Some(&budget)) {
-                Ok(count) => count,
-                Err(err) => {
-                    let empty_pairs = BTreeMap::new();
-                    let empty_triplets = BTreeMap::new();
-                    let topology = compute_topology_metrics(alpha_len, &empty_pairs, 0);
-                    let skeleton2 =
-                        compute_skeleton2_metrics(alpha_len, &empty_pairs, &empty_triplets);
-                    let error_code = error_code_from_symbol(&err);
-                    summaries.push(WeightSummary {
-                        weight,
-                        stats: BasisStats::default(),
-                        n_words_allowed: 0,
-                        n_active_words: 0,
-                        topology,
-                        skeleton2,
-                        status: Status::Err,
-                        error_code: Some(error_code),
-                    });
-                    continue;
+        let precount = counts.map(|counts| &counts[weight - cfg.weight_min]);
+        let n_words_allowed = match precount {
+            Some(Ok(count)) => *count,
+            Some(Err(err)) => {
+                let empty_pairs = BTreeMap::new();
+                let empty_triplets = BTreeMap::new();
+                let topology = compute_topology_metrics(alpha_len, &empty_pairs, 0);
+                let skeleton2 = compute_skeleton2_metrics(alpha_len, &empty_pairs, &empty_triplets);
+                let error_code = error_code_from_symbol(err);
+                summaries.push(WeightSummary {
+                    weight,
+                    stats: default_stats(sample_table),
+                    n_words_allowed: 0,
+                    n_active_words: 0,
+                    topology,
+                    skeleton2,
+                    status: Status::Err,
+                    error_code: Some(error_code),
+                });
+                continue;
+            }
+            None => {
+                match count_allowed_words_with_acceptor(alpha_len, &acceptor, weight, Some(&budget))
+                {
+                    Ok(count) => count,
+                    Err(err) => {
+                        let empty_pairs = BTreeMap::new();
+                        let empty_triplets = BTreeMap::new();
+                        let topology = compute_topology_metrics(alpha_len, &empty_pairs, 0);
+                        let skeleton2 =
+                            compute_skeleton2_metrics(alpha_len, &empty_pairs, &empty_triplets);
+                        let error_code = error_code_from_symbol(&err);
+                        summaries.push(WeightSummary {
+                            weight,
+                            stats: default_stats(sample_table),
+                            n_words_allowed: 0,
+                            n_active_words: 0,
+                            topology,
+                            skeleton2,
+                            status: Status::Err,
+                            error_code: Some(error_code),
+                        });
+                        continue;
+                    }
                 }
-            };
-        match build_integrable_basis_with_acceptor_with_stats(
+            }
+        };
+        match build_integrable_basis_with_acceptor_with_stats_and_table(
             &alphabet,
             &acceptor,
             weight,
             Some(&budget),
+            sample_table,
         ) {
             Ok(basis) => {
                 let stats = basis.stats().clone();
                 let active_cols = active_columns(&basis);
                 let pair_counts = pair_counts_from_words(&basis.words, &active_cols);
                 let triplet_counts = triplet_counts_from_words(&basis.words, &active_cols);
+                genealogical.observe_support_words(&basis.words, &active_cols);
                 let topology = compute_topology_metrics(alpha_len, &pair_counts, active_cols.len());
                 let skeleton2 = compute_skeleton2_metrics(alpha_len, &pair_counts, &triplet_counts);
                 for ((a, b), count) in &pair_counts {
@@ -197,6 +268,7 @@ pub fn run_experiment(cfg: &ExperimentConfig) -> Result<ExperimentReport, Experi
         weight_min: cfg.weight_min,
         weight_max: cfg.weight_max,
         vars,
+        genealogical: genealogical.finish(cfg.weight_min, cfg.weight_max),
         summaries,
         pairs_total,
         pairs_by_weight,
@@ -212,12 +284,23 @@ pub(crate) fn count_allowed_words_with_acceptor<A: WordAcceptor>(
     budget: Option<&mpl_symbol::space::ConstraintBudget>,
 ) -> Result<usize, SymbolError> {
     let count = count_words_with_acceptor(alpha_len, acceptor, weight, budget)?;
+    convert_word_count(count)
+}
+
+pub(crate) fn convert_word_count(count: u64) -> Result<usize, SymbolError> {
     if count > (usize::MAX as u64) {
         return Err(SymbolError::NotImplemented(
             "word count exceeds usize".to_string(),
         ));
     }
     Ok(count as usize)
+}
+
+fn default_stats(sample_table: SampleTable) -> BasisStats {
+    BasisStats {
+        sample_table,
+        ..Default::default()
+    }
 }
 
 pub(crate) fn error_code_from_symbol(err: &SymbolError) -> ErrorCode {
@@ -251,6 +334,135 @@ fn active_columns(basis: &Basis) -> Vec<usize> {
         }
     }
     cols
+}
+
+#[derive(Clone, Debug)]
+struct GenealogicalState {
+    kind: GenealogicalKind,
+    keys: Vec<String>,
+    letter_to_key: Vec<usize>,
+    observed: Vec<Vec<bool>>,
+    n_support_words: usize,
+}
+
+impl GenealogicalState {
+    fn new(alphabet: &Alphabet) -> Self {
+        let (kind, keys, letter_to_key) = match build_channel_keys(&alphabet.channels) {
+            Some((keys, letter_to_key)) => (GenealogicalKind::Channel, keys, letter_to_key),
+            None => {
+                let keys = letter_display_names(alphabet);
+                let mut letter_to_key = Vec::with_capacity(keys.len());
+                for idx in 0..keys.len() {
+                    letter_to_key.push(idx);
+                }
+                (GenealogicalKind::Letter, keys, letter_to_key)
+            }
+        };
+        let observed = vec![vec![false; keys.len()]; keys.len()];
+        Self {
+            kind,
+            keys,
+            letter_to_key,
+            observed,
+            n_support_words: 0,
+        }
+    }
+
+    fn observe_support_words(&mut self, words: &[Vec<usize>], active_cols: &[usize]) {
+        if self.keys.is_empty() {
+            return;
+        }
+        // Support words (active columns) give a basis-invariant view of the space.
+        self.n_support_words = self.n_support_words.saturating_add(active_cols.len());
+        let key_len = self.keys.len();
+        for &col in active_cols {
+            let word = match words.get(col) {
+                Some(word) => word,
+                None => continue,
+            };
+            if word.len() < 2 {
+                continue;
+            }
+            let mut seen = vec![false; key_len];
+            let mut seen_keys: Vec<usize> = Vec::new();
+            for &letter in word {
+                let key = match self.letter_to_key.get(letter) {
+                    Some(key) => *key,
+                    None => continue,
+                };
+                for &prev in &seen_keys {
+                    if prev < key_len && key < key_len {
+                        self.observed[prev][key] = true;
+                    }
+                }
+                if key < key_len && !seen[key] {
+                    seen[key] = true;
+                    seen_keys.push(key);
+                }
+            }
+        }
+    }
+
+    fn finish(self, weight_min: usize, weight_max: usize) -> GenealogicalReport {
+        let mut forbidden_pairs = BTreeSet::new();
+        for (row_idx, row) in self.observed.iter().enumerate() {
+            for (col_idx, observed) in row.iter().enumerate() {
+                if !observed {
+                    forbidden_pairs.insert((row_idx, col_idx));
+                }
+            }
+        }
+        GenealogicalReport {
+            kind: self.kind,
+            method: "space_support_subsequence",
+            weight_min,
+            weight_max,
+            n_support_words: self.n_support_words,
+            keys: self.keys,
+            forbidden_pairs,
+        }
+    }
+}
+
+fn build_channel_keys(channels: &[Option<ChannelId>]) -> Option<(Vec<String>, Vec<usize>)> {
+    if channels.is_empty() {
+        return Some((Vec::new(), Vec::new()));
+    }
+    // Keep channel ordering aligned with acceptor channel ids (numeric then named).
+    let mut keys = BTreeSet::new();
+    let mut per_letter = Vec::with_capacity(channels.len());
+    for channel in channels {
+        let value = channel.as_ref()?;
+        if let ChannelId::Named(name) = value {
+            if name.is_empty() {
+                return None;
+            }
+        }
+        keys.insert(value.clone());
+        per_letter.push(value.clone());
+    }
+
+    let mut key_map = BTreeMap::new();
+    let mut key_names = Vec::with_capacity(keys.len());
+    for (idx, key) in keys.into_iter().enumerate() {
+        key_map.insert(key.clone(), idx);
+        key_names.push(channel_id_display(&key));
+    }
+
+    let mut letter_to_key = Vec::with_capacity(per_letter.len());
+    for key in per_letter {
+        let idx = *key_map.get(&key)?;
+        letter_to_key.push(idx);
+    }
+
+    Some((key_names, letter_to_key))
+}
+
+fn channel_id_display(channel: &ChannelId) -> String {
+    match channel {
+        ChannelId::Numeric(value) => value.to_string(),
+        ChannelId::Named(name) => name.clone(),
+    }
 }
 
 fn pair_counts_from_words(
@@ -475,11 +687,12 @@ mod acceptor_tests {
 
         let summary = report.summaries.first().expect("summary");
         let weight = summary.weight;
-        let basis = build_integrable_basis_with_acceptor_with_stats(
+        let basis = build_integrable_basis_with_acceptor_with_stats_and_table(
             &cfg.alphabet,
             &acceptor,
             weight,
             Some(&budget),
+            cfg.sample_table,
         )
         .expect("basis");
         assert_eq!(basis.words.len(), summary.n_words_allowed);
@@ -507,5 +720,43 @@ mod acceptor_tests {
         assert_eq!(triplet_counts, expected_triplets);
         assert_eq!(topology, summary.topology);
         assert_eq!(skeleton2, summary.skeleton2);
+    }
+
+    #[test]
+    fn genealogical_support_pairs_are_basis_invariant() {
+        use mpl_ir::Expr;
+
+        let alphabet = Alphabet::new_with_channels(
+            "toy_channels".to_string(),
+            vec![
+                Expr::Var("a".to_string()),
+                Expr::Var("b".to_string()),
+                Expr::Var("c".to_string()),
+                Expr::Var("d".to_string()),
+            ],
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+            ],
+            vec![
+                Some(ChannelId::Numeric(0)),
+                Some(ChannelId::Numeric(0)),
+                Some(ChannelId::Numeric(1)),
+                Some(ChannelId::Numeric(1)),
+            ],
+        );
+
+        let words = vec![vec![0, 1], vec![2, 0], vec![3]];
+        let active_cols = vec![0, 1, 2];
+        let mut state = GenealogicalState::new(&alphabet);
+        state.observe_support_words(&words, &active_cols);
+        let report = state.finish(2, 2);
+
+        assert_eq!(report.kind, GenealogicalKind::Channel);
+        assert_eq!(report.keys, vec!["0".to_string(), "1".to_string()]);
+        assert!(report.forbidden_pairs.contains(&(0, 1)));
+        assert!(!report.forbidden_pairs.contains(&(1, 0)));
     }
 }

@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.1.8 node release)
+# mpl-simplifier (v0.1.9 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -195,7 +195,7 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.1.2
+# => 0.1.9
 ```
 
 ## Testing & Benchmarks
@@ -245,7 +245,8 @@ Manual tools:
 - `cargo run -p mpl-experiments -- run --spec crates/experiments/m1/L1_A2_cluster.toml`
   writes M1 outputs (`basis_stats.txt`, `dim_vs_w.csv`, `pairs.csv`,
   `pairs_by_weight.csv`, `triplets.csv`, `triplets_by_weight.csv`,
-  `topology_metrics.csv`) under the spec's `out_dir`.
+  `forbidden_pairs.csv`, `genealogical_rules.json`, `topology_metrics.csv`)
+  under the spec's `out_dir`.
 - `mpl-experiments` sets `default-run = "mpl_experiments"`, so `cargo run -p mpl-experiments -- ...`
   works without specifying `--bin`.
 - `cargo run -p mpl-experiments -- count --spec experiments/m2/M2_gene_channel_no_interleave_count_w12.toml`
@@ -263,6 +264,16 @@ Manual tools:
 - See `docs/experiments_format_m2.md` for the M2 single-run schema and outputs,
   and `docs/experiments_format_m6.md` for the filtration schema and outputs.
 - See `docs/performance_bottlenecks.md` for known scale limits.
+
+## v0.1.9 Release Notes
+- Added compiled acceptor graph + incremental DP cache for M6/M2 counting
+  (reuses counts across weights and avoids per-weight graph rebuilds).
+- Added deterministic `sample_table` selection to specs and output summaries
+  (`basis_stats.txt`, `dim_vs_w.csv`, `filtration_summary.csv`).
+- Added deterministic per-layer/weight parallelism in M6 filtration via
+  `engine.jobs` / `--jobs`.
+- Added basis-invariant genealogical outputs: `forbidden_pairs.csv` and
+  `genealogical_rules.json` from support-word subsequence checks.
 
 ## v0.1.8 Release Notes
 - Added M3/M4/M5/M6 experiment suites (`experiments/m3`, `experiments/m4`,
@@ -299,8 +310,7 @@ Manual tools:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions remain `0.1.1`/`0.1.2`; this is a node release
-  label for documentation and planning purposes.
+- Milestone note: crate versions are aligned to `0.1.9`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.

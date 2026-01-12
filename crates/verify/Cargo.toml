@@ -1,6 +1,6 @@
 [package]
 name = "mpl-verify"
-version = "0.1.1"
+version = "0.1.9"
 edition = "2021"
 
 [dependencies]
@@ -8,3 +8,4 @@ mpl-ir = { path = "../ir" }
 num-rational = "0.4"
 num-traits = "0.2"
 thiserror = "1"
+

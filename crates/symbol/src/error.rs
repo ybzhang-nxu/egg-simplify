@@ -20,7 +20,7 @@ impl fmt::Display for ConstraintBudgetKind {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum SymbolError {
     #[error("not implemented: {0}")]
     NotImplemented(String),
@@ -34,7 +34,7 @@ pub enum SymbolError {
     ConstraintBudgetExceeded(ConstraintBudgetKind),
 }
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum EvalError {
     #[error("unknown variable '{0}'")]
     UnknownVariable(String),

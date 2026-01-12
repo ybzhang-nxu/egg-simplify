@@ -85,9 +85,10 @@ pub use output::filtration::{
     render_filtration_summary_csv, render_filtration_summary_md, write_filtration_summary,
 };
 pub use output::single::{
-    render_basis_stats, render_count_only, render_dim_vs_w, render_pairs, render_pairs_by_weight,
-    render_skeleton2_metrics, render_topology_metrics, render_triplets, render_triplets_by_weight,
-    write_count_only, write_outputs,
+    render_basis_stats, render_count_only, render_dim_vs_w, render_forbidden_pairs,
+    render_genealogical_rules, render_pairs, render_pairs_by_weight, render_skeleton2_metrics,
+    render_topology_metrics, render_triplets, render_triplets_by_weight, write_count_only,
+    write_outputs,
 };
 pub use run::count::{run_count_only, CountReport, CountSummary};
 pub use run::filtration::{
@@ -95,7 +96,8 @@ pub use run::filtration::{
     FiltrationSpec, FiltrationSummaryRow,
 };
 pub use run::single::{
-    run_experiment, ExperimentConfig, ExperimentReport, TopologyMetrics, WeightSummary,
+    run_experiment, ExperimentConfig, ExperimentReport, GenealogicalKind, GenealogicalReport,
+    TopologyMetrics, WeightSummary,
 };
 pub use spec::m2::{load_spec, parse_spec_str};
 pub use spec::m6::{load_filtration_spec, parse_filtration_spec_str};
