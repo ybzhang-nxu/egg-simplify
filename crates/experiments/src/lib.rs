@@ -78,9 +78,22 @@ impl ErrorCode {
     }
 }
 
+pub use analysis::cross_loop::{
+    express_images_in_lower_space, image_rank, prefix_from_names, run_cross_loop,
+    run_cross_loop_scan, CrossLoopOptions, CrossLoopReport, CrossLoopScanOptions,
+    CrossLoopScanReport, ImageRankReport, MappingReport, RowFilter, SuffixSpec,
+};
+pub use analysis::esymb_rank_scan::{
+    render_esymb_rank_scan_outputs, run_esymb_rank_scan, AlphabetMode, EsymbRankScanConfig,
+    EsymbRankScanReport, NormalizeChoice, NormalizeMode, PairsMode, ScreenStatus,
+};
 pub use analysis::skeleton2::Skeleton2Metrics;
 pub use build::acceptors::AutomatonAcceptorRef;
 pub use build::alphabet::{alphabet_from_file, toy_alphabet_xy, toy_alphabet_xyz};
+pub use output::cross_loop::{
+    render_cross_loop_report, render_cross_loop_scan_csv, render_cross_loop_scan_index,
+    write_cross_loop_outputs, write_cross_loop_scan_outputs,
+};
 pub use output::filtration::{
     render_filtration_summary_csv, render_filtration_summary_md, write_filtration_summary,
 };

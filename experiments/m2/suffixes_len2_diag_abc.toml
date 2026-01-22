@@ -1,0 +1,6 @@
+# Probe pack for M2_kgram3_cycle_allowed (letters a,b,c).
+suffixes = [
+  ["a", "a"],
+  ["b", "b"],
+  ["c", "c"],
+]

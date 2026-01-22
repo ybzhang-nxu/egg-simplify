@@ -13,6 +13,10 @@ This directory contains curated M2 TOML specs that follow
   forbids the adjacent pair (x,y) to exercise adjacency filtering.
   Run: `mpl-experiments run --spec experiments/m2/M2_toy_xy_forbid_xy.toml`
 
+- `M2_toy_xy_alternating_allow.toml`:
+  only allows alternating adjacency x->y and y->x (xx/yy forbidden).
+  Run: `mpl-experiments run --spec experiments/m2/M2_toy_xy_alternating_allow.toml`
+
 - `M2_lang_ring12_allow.toml`:
   12-letter ring with allow-adjacency, predictable topology/pairs.
   Run: `mpl-experiments run --spec experiments/m2/M2_lang_ring12_allow.toml`
@@ -33,6 +37,25 @@ This directory contains curated M2 TOML specs that follow
 - `M2_gene_channel_no_interleave_count_w12.toml`:
   same genealogical rule but count-only at w=12.
   Run: `mpl-experiments count --spec experiments/m2/M2_gene_channel_no_interleave_count_w12.toml`
+
+## Cross-loop suffix probe packs
+
+These are convenience inputs for `mpl-experiments cross-loop --suffixes-toml`.
+They are written for specific alphabets; update letters to match other specs.
+
+- `suffixes_len2_diag.toml`:
+  repeated-letter suffixes (strike-two probe).
+- `suffixes_len2_smallgrid.toml`:
+  2x2 ordered pair grid over {x, y}.
+- `suffixes_len2_fullpairs.toml`:
+  full ordered pairs over {x, y} (same as smallgrid for XY).
+
+- `suffixes_len2_diag_abc.toml`:
+  repeated-letter suffixes for the k-gram cycle spec (letters a,b,c).
+- `suffixes_len2_smallgrid_abc.toml`:
+  ordered pairs over {a,b,c} for the k-gram cycle spec.
+- `suffixes_len2_diag_a1a2b1b2.toml`:
+  repeated-letter suffixes for the genealogical channel spec (a1,a2,b1,b2).
 
 ## Stress (expected ConstraintBudgetExceeded)
 

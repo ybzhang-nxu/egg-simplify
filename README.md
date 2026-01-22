@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.1.9 release)
+# mpl-simplifier (v0.2.1 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -195,7 +195,7 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.1.9
+# => 0.2.1
 ```
 
 ## Testing & Benchmarks
@@ -253,6 +253,10 @@ Manual tools:
   writes `counts_only.csv` to the spec `out_dir`.
 - `cargo run -p mpl-experiments -- filtration --spec experiments/m6/M6_reg_filtration_chain_w3.toml`
   writes `filtration_summary.csv` and `filtration_summary.md` to the spec `out_dir`.
+- `cargo run -p mpl-experiments -- esymb-rank-scan --data-dir reports/converted_jsonl --loops 1..6 --family pow-last --x-set a,b --y-set f,g --normalize auto`
+  writes `rank_scan.csv` and `summary.md` under `reports/esymb_rank_scan`.
+- `cargo run -p mpl-experiments -- esymb-rank-scan --data-dir reports/converted_jsonl --loops 1..6 --family block2 --pairs auto --alphabet auto --normalize auto --attempt-solve-inconclusive`
+  runs block2 scans with auto pair discovery and candidate solves.
 - Experiments spec: k-gram `mode = "allowed"` requires non-empty `triplets`
   (parse error includes `InvalidSpecEmptyAllowList`).
 - Experiments spec: budgets are opt-in via `[constraints.budget]` with
@@ -264,6 +268,24 @@ Manual tools:
 - See `docs/experiments_format_m2.md` for the M2 single-run schema and outputs,
   and `docs/experiments_format_m6.md` for the filtration schema and outputs.
 - See `docs/performance_bottlenecks.md` for known scale limits.
+
+## v0.2.1 Release Notes
+- Expanded `esymb-rank-scan` with normalization candidates, screen status
+  grouping, and mapped recurrence reporting (including predict_next for
+  normalized/original sequences).
+- Added auto alphabet + auto block2 pair discovery for ESymb scans, plus
+  block2-specific normalization candidates.
+- Added conservative mod-p rank aggregation (max over primes) and candidate
+  recurrence scaffolding for inconclusive sequences.
+
+## v0.2.0 Release Notes
+- Added cross-loop analysis in `mpl-experiments` (suffix projection, image rank,
+  mapping into lower space, and scan mode).
+- Added cross-loop CLI (`mpl-experiments cross-loop`) with deterministic outputs
+  and multi-suffix scan support.
+- Added cross-loop regression tests and design documentation.
+- Added `esymb-rank-scan` in `mpl-experiments` for Hankel rank screening and
+  exact recurrence recovery on Esymb JSONL inputs.
 
 ## v0.1.9 Release Notes
 - Added compiled acceptor graph + incremental DP cache for M6/M2 counting
@@ -310,7 +332,7 @@ Manual tools:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions are aligned to `0.1.9`.
+- Milestone note: crate versions are aligned to `0.2.1`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.

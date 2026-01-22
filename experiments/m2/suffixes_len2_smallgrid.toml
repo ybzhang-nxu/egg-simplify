@@ -1,0 +1,5 @@
+# Probe pack for the toy XY alphabet; update letters for other alphabets.
+suffixes = [
+  ["x", "x"], ["x", "y"],
+  ["y", "x"], ["y", "y"],
+]

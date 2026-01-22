@@ -1,9 +1,13 @@
 /target
 crates/**/target/
+crates/experiments/target/
 **/*.rs.bk
 Cargo.lock
 # private research planning (DO NOT COMMIT)
 计划实验书.md
+计划实验书.md
+toymodel.md
 # local shell artifacts
 reports/
 scripts/
+data/

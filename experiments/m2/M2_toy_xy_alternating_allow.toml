@@ -1,0 +1,20 @@
+[experiment]
+id = "M2_toy_xy_alternating_allow"
+out_dir = "reports/m2/M2_toy_xy_alternating_allow"
+w_min = 1
+w_max = 10
+
+[alphabet]
+vars = ["x", "y"]
+
+[[alphabet.letters]]
+name = "x"
+expr = "x"
+
+[[alphabet.letters]]
+name = "y"
+expr = "y"
+
+[constraints]
+adjacency_mode = "allow"
+adjacency_pairs = [["x", "y"], ["y", "x"]]
