@@ -83,9 +83,16 @@ pub use analysis::cross_loop::{
     run_cross_loop_scan, CrossLoopOptions, CrossLoopReport, CrossLoopScanOptions,
     CrossLoopScanReport, ImageRankReport, MappingReport, RowFilter, SuffixSpec,
 };
+pub use analysis::esymb_hankel_subblock::{
+    run_esymb_hankel_subblock, EsymbHankelSubblockConfig, HankelDependency, HankelSubblockReport,
+    HankelSubblockStats,
+};
 pub use analysis::esymb_rank_scan::{
     render_esymb_rank_scan_outputs, run_esymb_rank_scan, AlphabetMode, EsymbRankScanConfig,
     EsymbRankScanReport, NormalizeChoice, NormalizeMode, PairsMode, ScreenStatus,
+};
+pub use analysis::esymb_span_deps::{
+    run_esymb_span_deps, CoefSet, EsymbSpanDepsConfig, SpanDepsReport, SpanFamilyFilter,
 };
 pub use analysis::skeleton2::Skeleton2Metrics;
 pub use build::acceptors::AutomatonAcceptorRef;

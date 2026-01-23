@@ -80,7 +80,7 @@ pub fn rank_curve_subsample(
 }
 
 pub fn rank_curve_float(values: &[Coeff], nmax: usize, tau: f64) -> Vec<usize> {
-    let floats = values.iter().map(|c| coeff_to_f64(c)).collect::<Vec<_>>();
+    let floats = values.iter().map(coeff_to_f64).collect::<Vec<_>>();
     let mut out = Vec::with_capacity(nmax + 1);
     for n in 0..=nmax {
         let m = n + 1;
@@ -92,6 +92,26 @@ pub fn rank_curve_float(values: &[Coeff], nmax: usize, tau: f64) -> Vec<usize> {
         out.push(rank_float(&matrix, tau));
     }
     out
+}
+
+pub fn rank_matrix_mod_p(matrix: &[Vec<Coeff>], primes: &[i64]) -> Result<usize, ExperimentError> {
+    if matrix.is_empty() || matrix[0].is_empty() {
+        return Ok(0);
+    }
+    let mod_matrices = primes
+        .iter()
+        .filter_map(|&p| matrix_to_mod(matrix, p).map(|vals| (p, vals)))
+        .collect::<Vec<_>>();
+    if mod_matrices.is_empty() {
+        return Err(ExperimentError::InvalidConfig(
+            "no usable primes for matrix mod-p rank".to_string(),
+        ));
+    }
+    let mut ranks = Vec::new();
+    for (p, mat) in &mod_matrices {
+        ranks.push(rank_mod_p(mat, *p));
+    }
+    Ok(ranks.into_iter().max().unwrap_or(0))
 }
 
 pub fn detect_plateau(curve: &[usize], len: usize) -> Option<usize> {
@@ -120,22 +140,37 @@ fn values_to_mod(values: &[Coeff], p: i64) -> Option<Vec<i64>> {
     Some(out)
 }
 
+fn matrix_to_mod(matrix: &[Vec<Coeff>], p: i64) -> Option<Vec<Vec<i64>>> {
+    let mut out = Vec::with_capacity(matrix.len());
+    for row in matrix {
+        let mut row_out = Vec::with_capacity(row.len());
+        for coeff in row {
+            let denom = *coeff.denom();
+            let denom_mod = mod_i64(denom, p);
+            if denom_mod == 0 {
+                return None;
+            }
+            let inv = mod_inv(denom_mod, p);
+            let numer = mod_i64(*coeff.numer(), p);
+            row_out.push(mod_i64(numer * inv, p));
+        }
+        out.push(row_out);
+    }
+    Some(out)
+}
+
 fn hankel_mod(values: &[i64], size: usize) -> Vec<Vec<i64>> {
     let mut matrix = vec![vec![0; size]; size];
-    for i in 0..size {
-        for j in 0..size {
-            matrix[i][j] = values[i + j];
-        }
+    for (i, row) in matrix.iter_mut().enumerate() {
+        row.copy_from_slice(&values[i..i + size]);
     }
     matrix
 }
 
 fn hankel_f64(values: &[f64], size: usize) -> Vec<Vec<f64>> {
     let mut matrix = vec![vec![0.0; size]; size];
-    for i in 0..size {
-        for j in 0..size {
-            matrix[i][j] = values[i + j];
-        }
+    for (i, row) in matrix.iter_mut().enumerate() {
+        row.copy_from_slice(&values[i..i + size]);
     }
     matrix
 }
@@ -151,8 +186,8 @@ fn rank_mod_p(matrix: &[Vec<i64>], p: i64) -> usize {
     let mut row = 0usize;
     for col in 0..ncols {
         let mut pivot = None;
-        for r in row..nrows {
-            if mat[r][col] % p != 0 {
+        for (r, row_vals) in mat.iter().enumerate().skip(row) {
+            if row_vals[col] % p != 0 {
                 pivot = Some(r);
                 break;
             }
@@ -162,19 +197,20 @@ fn rank_mod_p(matrix: &[Vec<i64>], p: i64) -> usize {
         };
         mat.swap(row, pivot_row);
         let inv = mod_inv(mat[row][col], p);
-        for c in col..ncols {
-            mat[row][c] = mod_i64(mat[row][c] * inv, p);
+        for value in mat[row].iter_mut().skip(col) {
+            *value = mod_i64(*value * inv, p);
         }
-        for r in 0..nrows {
+        let pivot_row_vals = mat[row].clone();
+        for (r, row_vals) in mat.iter_mut().enumerate() {
             if r == row {
                 continue;
             }
-            let factor = mat[r][col];
+            let factor = row_vals[col];
             if factor == 0 {
                 continue;
             }
-            for c in col..ncols {
-                mat[r][c] = mod_i64(mat[r][c] - factor * mat[row][c], p);
+            for (c, value) in row_vals.iter_mut().enumerate().skip(col) {
+                *value = mod_i64(*value - factor * pivot_row_vals[c], p);
             }
         }
         rank += 1;
@@ -198,8 +234,8 @@ fn rank_float(matrix: &[Vec<f64>], tau: f64) -> usize {
     for col in 0..ncols {
         let mut pivot = None;
         let mut best = 0.0;
-        for r in row..nrows {
-            let value = mat[r][col].abs();
+        for (r, row_vals) in mat.iter().enumerate().skip(row) {
+            let value = row_vals[col].abs();
             if value > best {
                 best = value;
                 pivot = Some(r);
@@ -213,19 +249,20 @@ fn rank_float(matrix: &[Vec<f64>], tau: f64) -> usize {
         }
         mat.swap(row, pivot_row);
         let pivot_val = mat[row][col];
-        for c in col..ncols {
-            mat[row][c] /= pivot_val;
+        for value in mat[row].iter_mut().skip(col) {
+            *value /= pivot_val;
         }
-        for r in 0..nrows {
+        let pivot_row_vals = mat[row].clone();
+        for (r, row_vals) in mat.iter_mut().enumerate() {
             if r == row {
                 continue;
             }
-            let factor = mat[r][col];
+            let factor = row_vals[col];
             if factor.abs() <= tau {
                 continue;
             }
-            for c in col..ncols {
-                mat[r][c] -= factor * mat[row][c];
+            for (c, value) in row_vals.iter_mut().enumerate().skip(col) {
+                *value -= factor * pivot_row_vals[c];
             }
         }
         rank += 1;

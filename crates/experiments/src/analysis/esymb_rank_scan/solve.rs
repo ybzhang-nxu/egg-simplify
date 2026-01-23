@@ -22,15 +22,13 @@ pub fn solve_recurrence(
     let rows = order;
     let cols = order + 1;
     let mut matrix = vec![vec![Coeff::zero(); cols]; rows];
-    for r in 0..rows {
-        for c in 0..cols {
-            matrix[r][c] = values[offset + r + c];
+    for (r, row_vals) in matrix.iter_mut().enumerate() {
+        for (c, value) in row_vals.iter_mut().enumerate() {
+            *value = values[offset + r + c];
         }
     }
     let mut coeffs = kernel_vector(matrix)?;
-    let Some(last_idx) = last_nonzero_index(&coeffs) else {
-        return None;
-    };
+    let last_idx = last_nonzero_index(&coeffs)?;
     if last_idx == 0 {
         return None;
     }
@@ -108,8 +106,8 @@ fn kernel_vector(mut matrix: Vec<Vec<Coeff>>) -> Option<Vec<Coeff>> {
             break;
         }
         let mut pivot = None;
-        for r in row..rows {
-            if !matrix[r][col].is_zero() {
+        for (r, row_vals) in matrix.iter().enumerate().skip(row) {
+            if !row_vals[col].is_zero() {
                 pivot = Some(r);
                 break;
             }
@@ -119,20 +117,20 @@ fn kernel_vector(mut matrix: Vec<Vec<Coeff>>) -> Option<Vec<Coeff>> {
         };
         matrix.swap(row, pivot_row);
         let pivot_val = matrix[row][col];
-        for c in col..cols {
-            matrix[row][c] /= pivot_val;
+        for value in matrix[row].iter_mut().skip(col) {
+            *value /= pivot_val;
         }
         let pivot_snapshot = matrix[row].clone();
-        for r in 0..rows {
+        for (r, row_vals) in matrix.iter_mut().enumerate() {
             if r == row {
                 continue;
             }
-            let factor = matrix[r][col];
+            let factor = row_vals[col];
             if factor.is_zero() {
                 continue;
             }
-            for c in col..cols {
-                matrix[r][c] -= factor * pivot_snapshot[c];
+            for (c, value) in row_vals.iter_mut().enumerate().skip(col) {
+                *value -= factor * pivot_snapshot[c];
             }
         }
         pivot_cols.push(col);
@@ -168,9 +166,7 @@ fn last_nonzero_index(values: &[Coeff]) -> Option<usize> {
 }
 
 fn normalize_recurrence(values: &[Coeff]) -> Option<Vec<Coeff>> {
-    let Some(last_idx) = last_nonzero_index(values) else {
-        return None;
-    };
+    let last_idx = last_nonzero_index(values)?;
     let scale = values[last_idx];
     if scale.is_zero() {
         return None;

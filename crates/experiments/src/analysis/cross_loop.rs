@@ -710,7 +710,7 @@ fn rank_one_factor(matrix: &[Vec<Coeff>], col_mask: Option<&[bool]>) -> Option<R
     let mut seed_vec: Option<Vec<Coeff>> = None;
     let mut pivot_row = 0usize;
 
-    for col in 0..ncols {
+    for (col, _) in matrix[0].iter().enumerate() {
         if let Some(mask) = col_mask {
             if !mask.get(col).copied().unwrap_or(false) {
                 continue;
@@ -718,8 +718,8 @@ fn rank_one_factor(matrix: &[Vec<Coeff>], col_mask: Option<&[bool]>) -> Option<R
         }
         let mut col_vec = vec![Coeff::zero(); nrows];
         let mut any = false;
-        for row in 0..nrows {
-            let coeff = matrix[row][col];
+        for (row, matrix_row) in matrix.iter().enumerate() {
+            let coeff = matrix_row[col];
             col_vec[row] = coeff;
             any = any || !coeff.is_zero();
         }
@@ -745,7 +745,7 @@ fn rank_one_factor(matrix: &[Vec<Coeff>], col_mask: Option<&[bool]>) -> Option<R
     let seed_vec = seed_vec?;
 
     let mut v = vec![Coeff::zero(); ncols];
-    for col in 0..ncols {
+    for (col, _) in matrix[0].iter().enumerate() {
         if let Some(mask) = col_mask {
             if !mask.get(col).copied().unwrap_or(false) {
                 continue;
@@ -753,16 +753,16 @@ fn rank_one_factor(matrix: &[Vec<Coeff>], col_mask: Option<&[bool]>) -> Option<R
         }
         let scale = matrix[pivot_row][col];
         if scale.is_zero() {
-            for row in 0..nrows {
-                if !matrix[row][col].is_zero() {
+            for matrix_row in matrix.iter() {
+                if !matrix_row[col].is_zero() {
                     return None;
                 }
             }
             v[col] = Coeff::zero();
             continue;
         }
-        for row in 0..nrows {
-            if matrix[row][col] != seed_vec[row] * scale {
+        for (row, matrix_row) in matrix.iter().enumerate() {
+            if matrix_row[col] != seed_vec[row] * scale {
                 return None;
             }
         }
@@ -870,8 +870,8 @@ fn fit_polynomial(points: &[(i64, Coeff)], degree: usize) -> Option<Vec<Coeff>> 
     for (row, (x, y)) in points.iter().take(n).enumerate() {
         rhs[row] = *y;
         let mut pow = Coeff::one();
-        for col in 0..n {
-            matrix[row][col] = pow;
+        for value in &mut matrix[row] {
+            *value = pow;
             pow *= Coeff::from_integer(*x);
         }
     }
@@ -908,9 +908,9 @@ fn solve_square_system(matrix: &[Vec<Coeff>], rhs: &[Coeff]) -> Option<Vec<Coeff
 
     for col in 0..n {
         let mut pivot = None;
-        for row in col..n {
-            if !a[row][col].is_zero() {
-                pivot = Some(row);
+        for (row_idx, row_vals) in a.iter().enumerate().skip(col) {
+            if !row_vals[col].is_zero() {
+                pivot = Some(row_idx);
                 break;
             }
         }
@@ -927,15 +927,15 @@ fn solve_square_system(matrix: &[Vec<Coeff>], rhs: &[Coeff]) -> Option<Vec<Coeff
 
         let pivot_row_vals = a[col].clone();
         let pivot_b = b[col];
-        for row in (col + 1)..n {
-            let factor = a[row][col];
+        for (row_idx, row_vals) in a.iter_mut().enumerate().skip(col + 1) {
+            let factor = row_vals[col];
             if factor.is_zero() {
                 continue;
             }
-            for idx in col..n {
-                a[row][idx] -= factor * pivot_row_vals[idx];
+            for (idx, value) in row_vals.iter_mut().enumerate().skip(col) {
+                *value -= factor * pivot_row_vals[idx];
             }
-            b[row] -= factor * pivot_b;
+            b[row_idx] -= factor * pivot_b;
         }
     }
 
@@ -974,7 +974,10 @@ fn fit_scaled_sequence(
     scale
 }
 
-fn candidate_library() -> Vec<(&'static str, Box<dyn Fn(i64) -> Option<Coeff>>)> {
+type CandidateFn = Box<dyn Fn(i64) -> Option<Coeff>>;
+type CandidateLibrary = Vec<(&'static str, CandidateFn)>;
+
+fn candidate_library() -> CandidateLibrary {
     vec![
         ("seq_one", Box::new(|_| Some(Coeff::one()))),
         (

@@ -359,8 +359,8 @@ fn render_recovered_table(out: &mut String, sequences: &[SequenceAnalysis]) {
         let next_id = groups.len() + 1;
         let group_id = *groups.entry(key).or_insert(next_id);
         *group_counts.entry(group_id).or_insert(0) += 1;
-        if !rows.contains_key(&group_id) {
-            let row = vec![
+        rows.entry(group_id).or_insert_with(|| {
+            vec![
                 group_id.to_string(),
                 "1".to_string(),
                 seq.spec.family.as_str().to_string(),
@@ -377,9 +377,8 @@ fn render_recovered_table(out: &mut String, sequences: &[SequenceAnalysis]) {
                     .as_ref()
                     .map(format_coeff)
                     .unwrap_or_default(),
-            ];
-            rows.insert(group_id, row);
-        }
+            ]
+        });
     }
 
     if rows.is_empty() {

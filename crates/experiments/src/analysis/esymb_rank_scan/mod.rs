@@ -3,9 +3,13 @@ use std::path::{Path, PathBuf};
 use mpl_symbol::Coeff;
 use num_traits::Zero;
 
-use crate::analysis::esymb_rank_scan::family::SequenceSpec;
+use crate::analysis::esymb_rank_scan::family::{SequenceSource, SequenceSpec};
 use crate::analysis::esymb_rank_scan::io::{read_esymb_jsonl_meta, stream_esymb_terms};
 use crate::analysis::esymb_rank_scan::normalize::{normalize_values, odd_double_factorial};
+use crate::analysis::esymb_rank_scan::observables::{
+    render_marginals_matrix_rank_csv, render_marginals_observables_csv, MarginalCollector,
+    MarginalCollectorConfig,
+};
 use crate::analysis::esymb_rank_scan::rank::{
     detect_plateau, rank_curve_float, rank_curve_mod_p, rank_curve_subsample,
 };
@@ -20,6 +24,7 @@ use crate::ExperimentError;
 pub mod family;
 pub mod io;
 pub mod normalize;
+pub mod observables;
 pub mod rank;
 pub mod report;
 pub mod solve;
@@ -63,9 +68,20 @@ pub struct EsymbRankScanConfig {
     pub loops: Vec<usize>,
     pub family_pow_last: bool,
     pub family_block2: bool,
+    pub family_prefix: bool,
+    pub family_suffix: bool,
+    pub family_prefix_suffix: bool,
     pub x_set: Vec<String>,
     pub y_set: Vec<String>,
     pub pairs: Vec<String>,
+    pub alphabet: Vec<String>,
+    pub alphabet_project: bool,
+    pub prefix_len: Option<usize>,
+    pub suffix_len: Option<usize>,
+    pub only_observed: bool,
+    pub validate_marginals: bool,
+    pub export_observables: bool,
+    pub matrix_rank: bool,
     pub r_budget: usize,
     pub primes: Vec<i64>,
     pub float_rank: bool,
@@ -161,7 +177,12 @@ pub fn run_esymb_rank_scan(
             "no loops provided".to_string(),
         ));
     }
-    if !cfg.family_pow_last && !cfg.family_block2 {
+    if !cfg.family_pow_last
+        && !cfg.family_block2
+        && !cfg.family_prefix
+        && !cfg.family_suffix
+        && !cfg.family_prefix_suffix
+    {
         return Err(ExperimentError::InvalidConfig(
             "no families enabled".to_string(),
         ));
@@ -174,6 +195,69 @@ pub fn run_esymb_rank_scan(
     if cfg.family_block2 && cfg.pairs_mode == PairsMode::Manual && cfg.pairs.is_empty() {
         return Err(ExperimentError::InvalidConfig(
             "block2 family requires --pairs".to_string(),
+        ));
+    }
+    let wants_marginals = cfg.family_prefix || cfg.family_suffix || cfg.family_prefix_suffix;
+    if wants_marginals {
+        if cfg.alphabet_mode == AlphabetMode::Manual && cfg.alphabet.is_empty() {
+            return Err(ExperimentError::InvalidConfig(
+                "prefix/suffix families require --letters (manual alphabet)".to_string(),
+            ));
+        }
+        let min_loop = cfg.loops.iter().copied().min().unwrap_or(0);
+        let min_len = 2usize.saturating_mul(min_loop);
+        if cfg.family_prefix {
+            let r = cfg.prefix_len.ok_or_else(|| {
+                ExperimentError::InvalidConfig("prefix family requires --prefix-len".to_string())
+            })?;
+            if r > min_len {
+                return Err(ExperimentError::InvalidConfig(format!(
+                    "prefix length {r} exceeds min word length {min_len}"
+                )));
+            }
+        }
+        if cfg.family_suffix {
+            let k = cfg.suffix_len.ok_or_else(|| {
+                ExperimentError::InvalidConfig("suffix family requires --suffix-len".to_string())
+            })?;
+            if k > min_len {
+                return Err(ExperimentError::InvalidConfig(format!(
+                    "suffix length {k} exceeds min word length {min_len}"
+                )));
+            }
+        }
+        if cfg.family_prefix_suffix {
+            let r = cfg.prefix_len.ok_or_else(|| {
+                ExperimentError::InvalidConfig(
+                    "prefix-suffix family requires --prefix-len".to_string(),
+                )
+            })?;
+            let k = cfg.suffix_len.ok_or_else(|| {
+                ExperimentError::InvalidConfig(
+                    "prefix-suffix family requires --suffix-len".to_string(),
+                )
+            })?;
+            if r.saturating_add(k) > min_len {
+                return Err(ExperimentError::InvalidConfig(format!(
+                    "prefix-suffix lengths r={r},k={k} exceed min word length {min_len}"
+                )));
+            }
+        }
+    } else {
+        if cfg.validate_marginals {
+            return Err(ExperimentError::InvalidConfig(
+                "--validate-marginals requires prefix/suffix families".to_string(),
+            ));
+        }
+        if cfg.export_observables {
+            return Err(ExperimentError::InvalidConfig(
+                "--export-observables requires prefix/suffix families".to_string(),
+            ));
+        }
+    }
+    if cfg.matrix_rank && !cfg.family_prefix_suffix {
+        return Err(ExperimentError::InvalidConfig(
+            "--matrix-rank requires prefix-suffix family".to_string(),
         ));
     }
 
@@ -199,10 +283,18 @@ pub fn run_esymb_rank_scan(
         .as_ref()
         .map(|disc| disc.pairs.clone())
         .unwrap_or_default();
+    let alphabet = if wants_marginals {
+        match cfg.alphabet_mode {
+            AlphabetMode::Auto => auto_letters.clone(),
+            AlphabetMode::Manual => dedup_preserve_order(&cfg.alphabet),
+        }
+    } else {
+        Vec::new()
+    };
 
-    let mut sequences = Vec::new();
+    let mut exact_sequences = Vec::new();
     if cfg.family_pow_last {
-        sequences.extend(family::generate_pow_last(
+        exact_sequences.extend(family::generate_pow_last(
             &cfg.x_set, &cfg.y_set, &cfg.loops,
         ));
     }
@@ -213,15 +305,32 @@ pub fn run_esymb_rank_scan(
                     "auto pair discovery found no block2 pairs".to_string(),
                 ));
             }
-            sequences.extend(family::generate_block2_pairs(&auto_pairs, &cfg.loops));
+            exact_sequences.extend(family::generate_block2_pairs(&auto_pairs, &cfg.loops));
         } else {
-            sequences.extend(family::generate_block2(&cfg.pairs, &cfg.loops));
+            exact_sequences.extend(family::generate_block2(&cfg.pairs, &cfg.loops));
         }
     }
 
-    sequences.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
+    let collect_prefix = cfg.family_prefix || (cfg.family_prefix_suffix && cfg.validate_marginals);
+    let collect_suffix = cfg.family_suffix || (cfg.family_prefix_suffix && cfg.validate_marginals);
+    let collect_pair = cfg.family_prefix_suffix;
+    let mut marginal_collector = if wants_marginals {
+        Some(MarginalCollector::new(MarginalCollectorConfig {
+            loops: &cfg.loops,
+            letters: &alphabet,
+            prefix_len: cfg.prefix_len,
+            suffix_len: cfg.suffix_len,
+            collect_prefix,
+            collect_suffix,
+            collect_pair,
+            only_observed: cfg.only_observed,
+            alphabet_project: cfg.alphabet_project,
+        }))
+    } else {
+        None
+    };
 
-    let mut values = vec![vec![Coeff::zero(); cfg.loops.len()]; sequences.len()];
+    let mut exact_values = vec![vec![Coeff::zero(); cfg.loops.len()]; exact_sequences.len()];
     let mut loop_meta = Vec::new();
     for (loop_idx, loop_value) in cfg.loops.iter().enumerate() {
         let path = loop_paths.get(loop_value).ok_or_else(|| {
@@ -244,9 +353,9 @@ pub fn run_esymb_rank_scan(
         });
 
         let mut lookup = std::collections::BTreeMap::<Vec<String>, Vec<usize>>::new();
-        for (seq_idx, seq) in sequences.iter().enumerate() {
-            if let Some(word) = seq.words.get(loop_idx) {
-                lookup.entry(word.clone()).or_default().push(seq_idx);
+        for (seq_idx, seq) in exact_sequences.iter().enumerate() {
+            if let Some(word) = seq.word_for_loop(loop_idx) {
+                lookup.entry(word.to_vec()).or_default().push(seq_idx);
             }
         }
 
@@ -254,10 +363,59 @@ pub fn run_esymb_rank_scan(
         while let Some(term) = reader.next_term()? {
             if let Some(indices) = lookup.get(&term.word) {
                 for &seq_idx in indices {
-                    values[seq_idx][loop_idx] += term.coeff;
+                    exact_values[seq_idx][loop_idx] += term.coeff;
                 }
             }
+            if let Some(collector) = marginal_collector.as_mut() {
+                collector.observe_term(loop_idx, *loop_value, &term.word, term.coeff)?;
+            }
         }
+    }
+
+    if let Some(collector) = marginal_collector.as_ref() {
+        if cfg.validate_marginals {
+            collector.validate()?;
+        }
+    }
+
+    let mut sequence_pairs: Vec<(SequenceSpec, Vec<Coeff>)> =
+        exact_sequences.into_iter().zip(exact_values).collect();
+    if let Some(collector) = marginal_collector.take() {
+        let (marginal_sequences, marginal_values) = collector.sequences_and_values(
+            cfg.family_prefix,
+            cfg.family_suffix,
+            cfg.family_prefix_suffix,
+        );
+        sequence_pairs.extend(marginal_sequences.into_iter().zip(marginal_values));
+        if cfg.matrix_rank {
+            std::fs::create_dir_all(&cfg.out_dir)?;
+            let rows = collector.matrix_rank_rows(&cfg.primes)?;
+            std::fs::write(
+                cfg.out_dir.join("marginals_matrix_rank.csv"),
+                render_marginals_matrix_rank_csv(&rows),
+            )?;
+        }
+    }
+
+    let alphabet_order = alphabet_order_map(&alphabet);
+    sequence_pairs.sort_by(|a, b| compare_sequences(&a.0, &b.0, &alphabet_order));
+
+    let mut sequences = Vec::with_capacity(sequence_pairs.len());
+    let mut values = Vec::with_capacity(sequence_pairs.len());
+    for (spec, vals) in sequence_pairs {
+        sequences.push(spec);
+        values.push(vals);
+    }
+
+    if cfg.export_observables || cfg.matrix_rank {
+        std::fs::create_dir_all(&cfg.out_dir)?;
+    }
+
+    if cfg.export_observables {
+        std::fs::write(
+            cfg.out_dir.join("marginals_observables.csv"),
+            render_marginals_observables_csv(&sequences, &values, &cfg.loops),
+        )?;
     }
 
     let mut analyses = Vec::with_capacity(sequences.len());
@@ -320,10 +478,10 @@ fn discover_letters_and_pairs(
 }
 
 fn repeated_pair(word: &[String]) -> Option<(String, String)> {
-    if word.len() < 2 || word.len() % 2 != 0 {
+    if word.len() < 2 || !word.len().is_multiple_of(2) {
         return None;
     }
-    let first = word.get(0)?.clone();
+    let first = word.first()?.clone();
     let second = word.get(1)?.clone();
     for idx in (0..word.len()).step_by(2) {
         if word.get(idx)? != &first || word.get(idx + 1)? != &second {
@@ -331,6 +489,90 @@ fn repeated_pair(word: &[String]) -> Option<(String, String)> {
         }
     }
     Some((first, second))
+}
+
+fn dedup_preserve_order(values: &[String]) -> Vec<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    for value in values {
+        if seen.insert(value.clone()) {
+            out.push(value.clone());
+        }
+    }
+    out
+}
+
+fn alphabet_order_map(alphabet: &[String]) -> std::collections::BTreeMap<String, usize> {
+    let mut map = std::collections::BTreeMap::new();
+    for (idx, name) in alphabet.iter().enumerate() {
+        map.insert(name.clone(), idx);
+    }
+    map
+}
+
+fn compare_sequences(
+    a: &SequenceSpec,
+    b: &SequenceSpec,
+    alphabet_order: &std::collections::BTreeMap<String, usize>,
+) -> std::cmp::Ordering {
+    let family_cmp = a.family.as_str().cmp(b.family.as_str());
+    if family_cmp != std::cmp::Ordering::Equal {
+        return family_cmp;
+    }
+    match (&a.source, &b.source) {
+        (SequenceSource::Prefix { prefix: pa }, SequenceSource::Prefix { prefix: pb }) => {
+            compare_letter_seq(pa, pb, alphabet_order)
+        }
+        (SequenceSource::Suffix { suffix: sa }, SequenceSource::Suffix { suffix: sb }) => {
+            compare_letter_seq(sa, sb, alphabet_order)
+        }
+        (
+            SequenceSource::PrefixSuffix {
+                prefix: pa,
+                suffix: sa,
+            },
+            SequenceSource::PrefixSuffix {
+                prefix: pb,
+                suffix: sb,
+            },
+        ) => {
+            let cmp = compare_letter_seq(pa, pb, alphabet_order);
+            if cmp != std::cmp::Ordering::Equal {
+                return cmp;
+            }
+            compare_letter_seq(sa, sb, alphabet_order)
+        }
+        _ => a.param_string().cmp(&b.param_string()),
+    }
+}
+
+fn compare_letter_seq(
+    a: &[String],
+    b: &[String],
+    alphabet_order: &std::collections::BTreeMap<String, usize>,
+) -> std::cmp::Ordering {
+    for (left, right) in a.iter().zip(b.iter()) {
+        let ord = compare_letter(left, right, alphabet_order);
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+    }
+    a.len().cmp(&b.len())
+}
+
+fn compare_letter(
+    left: &str,
+    right: &str,
+    alphabet_order: &std::collections::BTreeMap<String, usize>,
+) -> std::cmp::Ordering {
+    let left_id = alphabet_order.get(left);
+    let right_id = alphabet_order.get(right);
+    match (left_id, right_id) {
+        (Some(l), Some(r)) => l.cmp(r),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => left.cmp(right),
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -378,15 +620,15 @@ fn analyze_sequence(
             if rank > 0 && rank <= cfg.r_budget {
                 if let Some(candidate) = solve_recurrence(&chosen.normalized_values, rank, 0) {
                     if let Some(candidate2) = solve_recurrence(&chosen.normalized_values, rank, 1) {
-                        if solve::equivalent_recurrence(&candidate, &candidate2) {
-                            if verify_recurrence(&chosen.normalized_values, &candidate) {
-                                predict_next_d =
-                                    predict_next_value(&chosen.normalized_values, &candidate);
-                                recurrence = Some(Recurrence {
-                                    order: candidate.order,
-                                    coeffs: candidate.coeffs,
-                                });
-                            }
+                        if solve::equivalent_recurrence(&candidate, &candidate2)
+                            && verify_recurrence(&chosen.normalized_values, &candidate)
+                        {
+                            predict_next_d =
+                                predict_next_value(&chosen.normalized_values, &candidate);
+                            recurrence = Some(Recurrence {
+                                order: candidate.order,
+                                coeffs: candidate.coeffs,
+                            });
                         }
                     }
                 }
@@ -414,7 +656,7 @@ fn analyze_sequence(
                     if candidate_pass {
                         screen_status = ScreenStatus::Pass;
                         recurrence = candidate_recurrence.clone();
-                        predict_next_d = candidate_predict_next_d.clone();
+                        predict_next_d = candidate_predict_next_d;
                     }
                 }
             }
@@ -469,7 +711,10 @@ fn build_candidates(
             family::FamilyType::PowLast => {
                 vec![NormalizeMode::None, NormalizeMode::OddDoubleFactorial]
             }
-            family::FamilyType::Block2 => vec![
+            family::FamilyType::Block2
+            | family::FamilyType::Prefix
+            | family::FamilyType::Suffix
+            | family::FamilyType::PrefixSuffix => vec![
                 NormalizeMode::None,
                 NormalizeMode::OddDoubleFactorial,
                 NormalizeMode::EvenDoubleFactorial,
@@ -576,7 +821,7 @@ fn build_candidates(
 }
 
 fn choose_candidate(mut candidates: Vec<CandidateResult>) -> CandidateResult {
-    candidates.sort_by(|a, b| compare_candidates(a, b));
+    candidates.sort_by(compare_candidates);
     candidates.swap_remove(0)
 }
 
@@ -697,6 +942,48 @@ fn coeff_within_bound(coeff: &Coeff, bound: i64) -> bool {
     numer <= bound && denom <= bound
 }
 
+fn resolve_loop_paths(
+    cfg: &EsymbRankScanConfig,
+) -> Result<std::collections::BTreeMap<usize, PathBuf>, ExperimentError> {
+    let mut map = std::collections::BTreeMap::new();
+    if let Some(pattern) = cfg.glob.as_ref() {
+        let paths = glob::glob(pattern)
+            .map_err(|err| ExperimentError::InvalidConfig(format!("invalid glob: {err}")))?;
+        for entry in paths {
+            let path = entry
+                .map_err(|err| ExperimentError::InvalidConfig(format!("glob error: {err}")))?;
+            if let Some(loop_index) = parse_loop_index(&path) {
+                map.insert(loop_index, path);
+            }
+        }
+    }
+    if let Some(dir) = cfg.data_dir.as_ref() {
+        for &loop_index in &cfg.loops {
+            let filename = format!("Esymb_L{loop_index}.jsonl");
+            let path = dir.join(filename);
+            map.insert(loop_index, path);
+        }
+    }
+    Ok(map)
+}
+
+fn parse_loop_index(path: &Path) -> Option<usize> {
+    let name = path.file_name()?.to_string_lossy();
+    let lower = name.to_ascii_lowercase();
+    let start = lower.find("_l")?;
+    let digits = lower[start + 2..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>();
+    digits.parse::<usize>().ok()
+}
+
+pub fn render_esymb_rank_scan_outputs(report: &EsymbRankScanReport) -> (String, String) {
+    let csv = render_esymb_rank_scan_csv(report);
+    let md = render_esymb_rank_scan_md(report);
+    (csv, md)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -776,46 +1063,4 @@ mod tests {
         let chosen = choose_candidate(candidates);
         assert_eq!(chosen.mode, NormalizeMode::None);
     }
-}
-
-fn resolve_loop_paths(
-    cfg: &EsymbRankScanConfig,
-) -> Result<std::collections::BTreeMap<usize, PathBuf>, ExperimentError> {
-    let mut map = std::collections::BTreeMap::new();
-    if let Some(pattern) = cfg.glob.as_ref() {
-        let paths = glob::glob(pattern)
-            .map_err(|err| ExperimentError::InvalidConfig(format!("invalid glob: {err}")))?;
-        for entry in paths {
-            let path = entry
-                .map_err(|err| ExperimentError::InvalidConfig(format!("glob error: {err}")))?;
-            if let Some(loop_index) = parse_loop_index(&path) {
-                map.insert(loop_index, path);
-            }
-        }
-    }
-    if let Some(dir) = cfg.data_dir.as_ref() {
-        for &loop_index in &cfg.loops {
-            let filename = format!("Esymb_L{loop_index}.jsonl");
-            let path = dir.join(filename);
-            map.insert(loop_index, path);
-        }
-    }
-    Ok(map)
-}
-
-fn parse_loop_index(path: &Path) -> Option<usize> {
-    let name = path.file_name()?.to_string_lossy();
-    let lower = name.to_ascii_lowercase();
-    let start = lower.find("_l")?;
-    let digits = lower[start + 2..]
-        .chars()
-        .take_while(|c| c.is_ascii_digit())
-        .collect::<String>();
-    digits.parse::<usize>().ok()
-}
-
-pub fn render_esymb_rank_scan_outputs(report: &EsymbRankScanReport) -> (String, String) {
-    let csv = render_esymb_rank_scan_csv(report);
-    let md = render_esymb_rank_scan_md(report);
-    (csv, md)
 }

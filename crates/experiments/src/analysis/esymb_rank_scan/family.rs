@@ -2,6 +2,9 @@
 pub enum FamilyType {
     PowLast,
     Block2,
+    Prefix,
+    Suffix,
+    PrefixSuffix,
 }
 
 impl FamilyType {
@@ -9,15 +12,35 @@ impl FamilyType {
         match self {
             Self::PowLast => "pow-last",
             Self::Block2 => "block2",
+            Self::Prefix => "prefix",
+            Self::Suffix => "suffix",
+            Self::PrefixSuffix => "prefix-suffix",
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum SequenceSource {
+    ExactWords {
+        words: Vec<Vec<String>>,
+    },
+    Prefix {
+        prefix: Vec<String>,
+    },
+    Suffix {
+        suffix: Vec<String>,
+    },
+    PrefixSuffix {
+        prefix: Vec<String>,
+        suffix: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub struct SequenceSpec {
     pub family: FamilyType,
     pub params: Vec<String>,
-    pub words: Vec<Vec<String>>,
+    pub source: SequenceSource,
 }
 
 impl SequenceSpec {
@@ -27,6 +50,20 @@ impl SequenceSpec {
 
     pub fn sort_key(&self) -> (String, String) {
         (self.family.as_str().to_string(), self.param_string())
+    }
+
+    pub fn word_for_loop(&self, loop_idx: usize) -> Option<&[String]> {
+        match &self.source {
+            SequenceSource::ExactWords { words } => words.get(loop_idx).map(|w| w.as_slice()),
+            _ => None,
+        }
+    }
+
+    pub fn is_marginal(&self) -> bool {
+        matches!(
+            self.family,
+            FamilyType::Prefix | FamilyType::Suffix | FamilyType::PrefixSuffix
+        )
     }
 }
 
@@ -52,7 +89,7 @@ pub fn generate_pow_last(x_set: &[String], y_set: &[String], loops: &[usize]) ->
             out.push(SequenceSpec {
                 family: FamilyType::PowLast,
                 params: vec![format!("x={x}"), format!("y={y}")],
-                words,
+                source: SequenceSource::ExactWords { words },
             });
         }
     }
@@ -76,7 +113,7 @@ pub fn generate_block2(pairs: &[String], loops: &[usize]) -> Vec<SequenceSpec> {
             out.push(SequenceSpec {
                 family: FamilyType::Block2,
                 params: vec![format!("u={u}"), format!("v={v}")],
-                words,
+                source: SequenceSource::ExactWords { words },
             });
         }
     }
@@ -99,8 +136,12 @@ pub fn generate_block2_pairs(pairs: &[(String, String)], loops: &[usize]) -> Vec
         out.push(SequenceSpec {
             family: FamilyType::Block2,
             params: vec![format!("u={u}"), format!("v={v}")],
-            words,
+            source: SequenceSource::ExactWords { words },
         });
     }
     out
+}
+
+pub fn format_letters_compact(letters: &[String]) -> String {
+    letters.join("")
 }

@@ -7,10 +7,12 @@ use serde::Deserialize;
 
 use mpl_experiments::{
     load_filtration_spec, load_spec, prefix_from_names, render_cross_loop_scan_index,
-    run_count_only, run_cross_loop, run_cross_loop_scan, run_esymb_rank_scan, run_experiment,
-    run_filtration, write_count_only, write_cross_loop_outputs, write_cross_loop_scan_outputs,
-    write_filtration_summary, write_outputs, AlphabetMode, CrossLoopOptions, CrossLoopScanOptions,
-    EsymbRankScanConfig, NormalizeChoice, PairsMode, RowFilter, SuffixSpec,
+    run_count_only, run_cross_loop, run_cross_loop_scan, run_esymb_hankel_subblock,
+    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, write_count_only,
+    write_cross_loop_outputs, write_cross_loop_scan_outputs, write_filtration_summary,
+    write_outputs, AlphabetMode, CoefSet, CrossLoopOptions, CrossLoopScanOptions,
+    EsymbHankelSubblockConfig, EsymbRankScanConfig, EsymbSpanDepsConfig, NormalizeChoice,
+    PairsMode, RowFilter, SpanFamilyFilter, SuffixSpec,
 };
 
 fn main() {
@@ -33,6 +35,8 @@ fn run() -> Result<(), String> {
         "filtration" => run_filtration_spec(args),
         "cross-loop" => cross_loop(args.collect()),
         "esymb-rank-scan" => esymb_rank_scan(args.collect()),
+        "esymb-span-deps" => esymb_span_deps(args.collect()),
+        "esymb-hankel-subblock" => esymb_hankel_subblock(args.collect()),
         "--help" | "-h" => {
             print_help();
             Ok(())
@@ -176,9 +180,20 @@ struct EsymbRankScanCliConfig {
     loops: Vec<usize>,
     family_pow_last: bool,
     family_block2: bool,
+    family_prefix: bool,
+    family_suffix: bool,
+    family_prefix_suffix: bool,
     x_set: Vec<String>,
     y_set: Vec<String>,
     pairs: Vec<String>,
+    alphabet: Vec<String>,
+    alphabet_project: bool,
+    prefix_len: Option<usize>,
+    suffix_len: Option<usize>,
+    only_observed: bool,
+    validate_marginals: bool,
+    export_observables: bool,
+    matrix_rank: bool,
     alphabet_mode: AlphabetMode,
     pairs_mode: PairsMode,
     r_budget: usize,
@@ -203,9 +218,20 @@ impl Default for EsymbRankScanCliConfig {
             loops: Vec::new(),
             family_pow_last: false,
             family_block2: false,
+            family_prefix: false,
+            family_suffix: false,
+            family_prefix_suffix: false,
             x_set: Vec::new(),
             y_set: Vec::new(),
             pairs: Vec::new(),
+            alphabet: Vec::new(),
+            alphabet_project: false,
+            prefix_len: None,
+            suffix_len: None,
+            only_observed: false,
+            validate_marginals: false,
+            export_observables: false,
+            matrix_rank: false,
             alphabet_mode: AlphabetMode::Manual,
             pairs_mode: PairsMode::Manual,
             r_budget: 0,
@@ -518,11 +544,17 @@ fn esymb_rank_scan(args: Vec<String>) -> Result<(), String> {
                 if !family_seen {
                     cfg.family_pow_last = false;
                     cfg.family_block2 = false;
+                    cfg.family_prefix = false;
+                    cfg.family_suffix = false;
+                    cfg.family_prefix_suffix = false;
                     family_seen = true;
                 }
                 match value.as_str() {
                     "pow-last" => cfg.family_pow_last = true,
                     "block2" => cfg.family_block2 = true,
+                    "prefix" => cfg.family_prefix = true,
+                    "suffix" => cfg.family_suffix = true,
+                    "prefix-suffix" => cfg.family_prefix_suffix = true,
                     other => return Err(format!("unknown --family value: {other}")),
                 }
             }
@@ -534,6 +566,14 @@ fn esymb_rank_scan(args: Vec<String>) -> Result<(), String> {
                     "auto" => AlphabetMode::Auto,
                     other => return Err(format!("invalid --alphabet value: {other}")),
                 };
+            }
+            "--letters" => {
+                idx += 1;
+                cfg.alphabet = parse_list(&args, &mut idx, "--letters")?;
+            }
+            "--alphabet-project" => {
+                idx += 1;
+                cfg.alphabet_project = true;
             }
             "--x-set" => {
                 idx += 1;
@@ -557,6 +597,44 @@ fn esymb_rank_scan(args: Vec<String>) -> Result<(), String> {
                     cfg.pairs_mode = PairsMode::Manual;
                     cfg.pairs = list;
                 }
+            }
+            "--prefix-len" | "--r" => {
+                idx += 1;
+                let value =
+                    parse_usize(&next_arg(&args, &mut idx, "--prefix-len")?, "--prefix-len")?;
+                if let Some(existing) = cfg.prefix_len {
+                    if existing != value {
+                        return Err("conflicting --prefix-len values".to_string());
+                    }
+                }
+                cfg.prefix_len = Some(value);
+            }
+            "--suffix-len" | "--k" => {
+                idx += 1;
+                let value =
+                    parse_usize(&next_arg(&args, &mut idx, "--suffix-len")?, "--suffix-len")?;
+                if let Some(existing) = cfg.suffix_len {
+                    if existing != value {
+                        return Err("conflicting --suffix-len values".to_string());
+                    }
+                }
+                cfg.suffix_len = Some(value);
+            }
+            "--only-observed" => {
+                idx += 1;
+                cfg.only_observed = true;
+            }
+            "--validate-marginals" => {
+                idx += 1;
+                cfg.validate_marginals = true;
+            }
+            "--export-observables" => {
+                idx += 1;
+                cfg.export_observables = true;
+            }
+            "--matrix-rank" => {
+                idx += 1;
+                cfg.matrix_rank = true;
             }
             "--r-budget" => {
                 idx += 1;
@@ -662,9 +740,20 @@ fn esymb_rank_scan(args: Vec<String>) -> Result<(), String> {
         loops: cfg.loops,
         family_pow_last: cfg.family_pow_last,
         family_block2: cfg.family_block2,
+        family_prefix: cfg.family_prefix,
+        family_suffix: cfg.family_suffix,
+        family_prefix_suffix: cfg.family_prefix_suffix,
         x_set: cfg.x_set,
         y_set: cfg.y_set,
         pairs: cfg.pairs,
+        alphabet: cfg.alphabet,
+        alphabet_project: cfg.alphabet_project,
+        prefix_len: cfg.prefix_len,
+        suffix_len: cfg.suffix_len,
+        only_observed: cfg.only_observed,
+        validate_marginals: cfg.validate_marginals,
+        export_observables: cfg.export_observables,
+        matrix_rank: cfg.matrix_rank,
         r_budget: cfg.r_budget,
         primes: cfg.primes,
         float_rank: cfg.float_rank,
@@ -699,6 +788,181 @@ fn esymb_rank_scan(args: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+fn esymb_span_deps(args: Vec<String>) -> Result<(), String> {
+    let mut input: Option<PathBuf> = None;
+    let mut out_dir: Option<PathBuf> = None;
+    let mut family = SpanFamilyFilter::All;
+    let mut support_max = 3usize;
+    let mut coef_set = CoefSet::Pm1;
+    let mut top_k = 200usize;
+    let mut export_forbidden = false;
+    let mut export_equiv_classes = false;
+
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--in" | "--observables" => {
+                idx += 1;
+                let value = PathBuf::from(next_arg(&args, &mut idx, "--in")?);
+                if let Some(existing) = &input {
+                    if existing != &value {
+                        return Err("conflicting --in/--observables values".to_string());
+                    }
+                } else {
+                    input = Some(value);
+                }
+            }
+            "--out-dir" | "--out" => {
+                idx += 1;
+                out_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--out-dir")?));
+            }
+            "--family" => {
+                idx += 1;
+                let value = next_arg(&args, &mut idx, "--family")?;
+                family = match value.as_str() {
+                    "all" => SpanFamilyFilter::All,
+                    "prefix" => SpanFamilyFilter::Prefix,
+                    "suffix" => SpanFamilyFilter::Suffix,
+                    "prefix-suffix" => SpanFamilyFilter::PrefixSuffix,
+                    other => return Err(format!("invalid --family value: {other}")),
+                };
+            }
+            "--support-max" => {
+                idx += 1;
+                support_max = parse_usize(
+                    &next_arg(&args, &mut idx, "--support-max")?,
+                    "--support-max",
+                )?;
+            }
+            "--coef-set" => {
+                idx += 1;
+                let value = next_arg(&args, &mut idx, "--coef-set")?;
+                coef_set = match value.as_str() {
+                    "pm1" => CoefSet::Pm1,
+                    "pm2" => CoefSet::Pm2,
+                    other => return Err(format!("invalid --coef-set value: {other}")),
+                };
+            }
+            "--top-k" => {
+                idx += 1;
+                top_k = parse_usize(&next_arg(&args, &mut idx, "--top-k")?, "--top-k")?;
+            }
+            "--export-forbidden" => {
+                idx += 1;
+                export_forbidden = true;
+            }
+            "--export-equiv-classes" => {
+                idx += 1;
+                export_equiv_classes = true;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            other => {
+                return Err(format!("unknown arg: {other}"));
+            }
+        }
+    }
+
+    let input = input.ok_or_else(|| "missing --observables <path>".to_string())?;
+    let out_dir = out_dir.unwrap_or_else(|| PathBuf::from("reports/esymb_span_deps"));
+    let cfg = EsymbSpanDepsConfig {
+        input,
+        out_dir: out_dir.clone(),
+        family,
+        support_max,
+        coef_set,
+        top_k,
+        export_forbidden,
+        export_equiv_classes,
+    };
+    let report = run_esymb_span_deps(&cfg).map_err(|err| err.to_string())?;
+    println!(
+        "esymb-span-deps loops={:?} observables={} trivial={} out={}",
+        report.loops,
+        report.total_observables,
+        report.trivial_observables,
+        out_dir.display()
+    );
+    Ok(())
+}
+
+fn esymb_hankel_subblock(args: Vec<String>) -> Result<(), String> {
+    let mut input: Option<PathBuf> = None;
+    let mut out_dir: Option<PathBuf> = None;
+    let mut r: Option<usize> = None;
+    let mut k: Option<usize> = None;
+    let mut loops: Option<Vec<usize>> = None;
+    let mut primes = vec![1000003, 1000033, 1000037];
+    let mut exact = false;
+
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--in" => {
+                idx += 1;
+                input = Some(PathBuf::from(next_arg(&args, &mut idx, "--in")?));
+            }
+            "--out-dir" | "--out" => {
+                idx += 1;
+                out_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--out-dir")?));
+            }
+            "--r" => {
+                idx += 1;
+                r = Some(parse_usize(&next_arg(&args, &mut idx, "--r")?, "--r")?);
+            }
+            "--k" => {
+                idx += 1;
+                k = Some(parse_usize(&next_arg(&args, &mut idx, "--k")?, "--k")?);
+            }
+            "--loops" => {
+                idx += 1;
+                loops = Some(parse_loop_list(&args, &mut idx, "--loops")?);
+            }
+            "--primes" => {
+                idx += 1;
+                primes = parse_i64_list(&args, &mut idx, "--primes")?;
+            }
+            "--exact" => {
+                idx += 1;
+                exact = true;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            other => {
+                return Err(format!("unknown arg: {other}"));
+            }
+        }
+    }
+
+    let input = input.ok_or_else(|| "missing --in <path>".to_string())?;
+    let r = r.ok_or_else(|| "missing --r <n>".to_string())?;
+    let k = k.ok_or_else(|| "missing --k <n>".to_string())?;
+    let out_dir = out_dir.unwrap_or_else(|| PathBuf::from("reports/esymb_hankel_subblock"));
+
+    let cfg = EsymbHankelSubblockConfig {
+        input,
+        out_dir: out_dir.clone(),
+        r,
+        k,
+        loops,
+        primes,
+        exact,
+    };
+    let report = run_esymb_hankel_subblock(&cfg).map_err(|err| err.to_string())?;
+    println!(
+        "esymb-hankel-subblock loops={:?} rows={} cols={} out={}",
+        report.loops,
+        report.nrows,
+        report.ncols,
+        out_dir.display()
+    );
+    Ok(())
+}
+
 fn next_value<I>(args: &mut I, flag: &str) -> Result<String, String>
 where
     I: Iterator<Item = String>,
@@ -719,6 +983,8 @@ fn print_help() {
     );
     println!("  mpl-experiments cross-loop --spec <path> --weight-min <n> --weight-max <n> --suffix <letters...> [options]");
     println!("  mpl-experiments esymb-rank-scan --data-dir <dir> --loops <list> [options]");
+    println!("  mpl-experiments esymb-span-deps --observables <path> [options]");
+    println!("  mpl-experiments esymb-hankel-subblock --in <path> --r <n> --k <n> [options]");
     println!();
     println!("Options:");
     println!("  --spec <path>          Experiment TOML spec");
@@ -738,11 +1004,22 @@ fn print_help() {
     println!("  --export-constraints   Export coupled constraints (requires mapping)");
     println!("  --prefactor-col <n>    Column index for prefactor extraction (scan mode)");
     println!("  --out <dir>            Output directory override");
+    println!("  --out-dir <dir>        Output directory override (alias for --out)");
     println!("  --data-dir <dir>       Directory with Esymb_L*.jsonl (esymb-rank-scan)");
     println!("  --glob <pattern>       Glob for Esymb_L*.jsonl (esymb-rank-scan)");
     println!("  --loops <list>         Loop list or range (e.g. 1..6,3,5)");
+    println!("  --family <name>        pow-last|block2|prefix|suffix|prefix-suffix (repeatable)");
     println!("  --alphabet <mode>      manual|auto (default: manual)");
-    println!("  --family <name>        pow-last or block2 (repeatable)");
+    println!("  --letters <letters...> Manual alphabet list for prefix/suffix families");
+    println!("  --alphabet-project     Drop terms with letters outside alphabet (prefix/suffix)");
+    println!("  --prefix-len <n>       Prefix length for prefix/prefix-suffix families");
+    println!("  --suffix-len <n>       Suffix length for suffix/prefix-suffix families");
+    println!("  --r <n>                Alias for --prefix-len");
+    println!("  --k <n>                Alias for --suffix-len");
+    println!("  --only-observed        Emit only observed prefix/suffix buckets");
+    println!("  --validate-marginals   Check prefix/suffix conservation identities");
+    println!("  --export-observables   Write marginals_observables.csv");
+    println!("  --matrix-rank          Write marginals_matrix_rank.csv");
     println!("  --x-set <letters...>   Letter set for pow-last family");
     println!("  --y-set <letters...>   Letter set for pow-last family");
     println!("  --pairs <letters...>   Letter set for block2 family (or auto)");
@@ -760,6 +1037,20 @@ fn print_help() {
     println!("  --skip-trivial         Skip trivial all-zero sequences (default: true)");
     println!("  --no-skip-trivial      Disable trivial-sequence skipping");
     println!("  --attempt-solve-inconclusive  Try exact solve on inconclusive sequences");
+    println!("  --observables <path>  Input marginals_observables.csv (esymb-span-deps)");
+    println!("  --in <path>           Alias for --observables");
+    println!("  --family <name>       prefix|suffix|prefix-suffix|all (esymb-span-deps)");
+    println!("  --support-max <n>     Max support size (default: 3)");
+    println!("  --coef-set <name>     pm1|pm2 coefficient set (default: pm1)");
+    println!("  --top-k <n>           Limit sparse relations (default: 200)");
+    println!("  --export-forbidden    Write forbidden_keys.csv and nonzero_keys.csv");
+    println!("  --export-equiv-classes  Write equiv_classes.csv");
+    println!("  --in <path>           Input marginals_observables.csv (esymb-hankel-subblock)");
+    println!("  --r <n>               Prefix length (esymb-hankel-subblock)");
+    println!("  --k <n>               Suffix length (esymb-hankel-subblock)");
+    println!("  --loops <list>        Loop list or range (esymb-hankel-subblock)");
+    println!("  --primes <list>       Prime list for mod-p rank (esymb-hankel-subblock)");
+    println!("  --exact               Enable mod-p row/col dependencies (max-rank prime)");
     println!("  --help                 Show this help");
 }
 

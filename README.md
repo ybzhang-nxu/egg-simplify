@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.2.1 release)
+# mpl-simplifier (v0.2.2 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -195,7 +195,7 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.2.1
+# => 0.2.2
 ```
 
 ## Testing & Benchmarks
@@ -257,6 +257,14 @@ Manual tools:
   writes `rank_scan.csv` and `summary.md` under `reports/esymb_rank_scan`.
 - `cargo run -p mpl-experiments -- esymb-rank-scan --data-dir reports/converted_jsonl --loops 1..6 --family block2 --pairs auto --alphabet auto --normalize auto --attempt-solve-inconclusive`
   runs block2 scans with auto pair discovery and candidate solves.
+- `cargo run -p mpl-experiments -- esymb-rank-scan --data-dir reports/converted_jsonl --loops 1..6 --family prefix --prefix-len 1 --letters a,b --validate-marginals --export-observables`
+  runs prefix marginals with conservation checks and writes `marginals_observables.csv`.
+- `cargo run -p mpl-experiments -- esymb-span-deps --in reports/esymb_rank_scan/marginals_observables.csv --out-dir reports/esymb_span_deps`
+  extracts sparse span relations from exported marginals and writes `span_stats.csv`, `equiv_classes.csv`, `span_deps.csv`, and `span_deps.md`.
+- `cargo run -p mpl-experiments -- esymb-hankel-subblock --in reports/esymb_rank_scan/marginals_observables.csv --r 2 --k 2 --exact --out-dir reports/esymb_hankel_subblock`
+  rebuilds prefix-suffix Hankel subblocks per loop, writes `hankel_subblock_stats.csv`, and (with `--exact`) mod-p row/col dependencies.
+- `cargo run -p mpl-experiments -- esymb-rank-scan --data-dir reports/converted_jsonl --loops 1..6 --family prefix-suffix --prefix-len 2 --suffix-len 2 --letters a,b,c --matrix-rank`
+  runs prefix/suffix marginals and writes `marginals_matrix_rank.csv`.
 - Experiments spec: k-gram `mode = "allowed"` requires non-empty `triplets`
   (parse error includes `InvalidSpecEmptyAllowList`).
 - Experiments spec: budgets are opt-in via `[constraints.budget]` with
@@ -268,6 +276,14 @@ Manual tools:
 - See `docs/experiments_format_m2.md` for the M2 single-run schema and outputs,
   and `docs/experiments_format_m6.md` for the filtration schema and outputs.
 - See `docs/performance_bottlenecks.md` for known scale limits.
+
+## v0.2.2 Release Notes
+- Added ESymb marginals analysis tools in `mpl-experiments`:
+  `esymb-span-deps` (forbidden/nonzero keys, equivalence classes, sparse relations)
+  and `esymb-hankel-subblock` (prefix-suffix Hankel subblocks with mod-p rank and
+  optional exact row/col dependencies).
+- Added `--export-observables` and `--matrix-rank` outputs for ESymb marginals
+  scans to support downstream span/Hankel analysis.
 
 ## v0.2.1 Release Notes
 - Expanded `esymb-rank-scan` with normalization candidates, screen status
@@ -332,7 +348,7 @@ Manual tools:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions are aligned to `0.2.1`.
+- Milestone note: crate versions are aligned to `0.2.2`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.

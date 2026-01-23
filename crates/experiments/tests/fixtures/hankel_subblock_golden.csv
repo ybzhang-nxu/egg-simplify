@@ -1,0 +1,5 @@
+family,params,cL2,cL3
+prefix-suffix,"r=1,k=1,u=a,v=c",1,1
+prefix-suffix,"r=1,k=1,u=a,v=d",2,2
+prefix-suffix,"r=1,k=1,u=b,v=c",1,1
+prefix-suffix,"r=1,k=1,u=b,v=d",2,2

@@ -483,7 +483,7 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
 name = "mpl-experiments"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "glob",
  "mpl-ir",
@@ -497,7 +497,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-ir"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "criterion",
  "num-rational",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-rewrite"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "criterion",
  "egg",
@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-rewrite-symbol"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "assert_cmd",
  "egg",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-simplify"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-symbol"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "mpl-ir",
  "num-rational",
@@ -557,7 +557,7 @@ dependencies = [
 
 [[package]]
 name = "mpl-verify"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "mpl-ir",
  "num-rational",

@@ -1,0 +1,7 @@
+family,params,cL1,cL2
+prefix,"r=1,p=a",1,2
+prefix,"r=1,p=b",1,2
+prefix,"r=1,p=c",2,4
+prefix,"r=1,p=d",3,5
+prefix,"r=1,p=e",4,7
+prefix,"r=1,p=f",0,0
