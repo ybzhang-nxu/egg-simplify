@@ -15,7 +15,8 @@ mod stats;
 pub use crate::integrability_utils::SampleTable;
 pub use acceptor::{
     And, ChannelPairsAcceptor, ChannelPairsMode, ConstraintBudget, GenealogicalAcceptor,
-    GenealogicalRule, KGramAcceptor, KGramMode, WordAcceptor, WordConstraintsAcceptor,
+    GenealogicalRule, KGramAcceptor, KGramMode, MaxAlternationsAcceptor, WordAcceptor,
+    WordConstraintsAcceptor,
 };
 pub use stats::BasisStats;
 

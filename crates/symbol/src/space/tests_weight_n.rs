@@ -254,11 +254,11 @@ mod tests {
     }
 
     #[test]
-    fn basis_dim_xy_matches_w_plus_1_for_w2_to_w6() {
+    fn basis_dim_xy_matches_w_plus_1_for_w1_to_w12() {
         let alpha = toy_alphabet_xy();
         let c = no_constraints();
 
-        for w in 2..=6 {
+        for w in 1..=12 {
             let basis = build_integrable_basis(&alpha, &c, w).unwrap();
 
             let expected_words = 1usize << w;

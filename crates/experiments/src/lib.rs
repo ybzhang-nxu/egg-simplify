@@ -94,6 +94,7 @@ pub use analysis::esymb_rank_scan::{
 pub use analysis::esymb_span_deps::{
     run_esymb_span_deps, CoefSet, EsymbSpanDepsConfig, SpanDepsReport, SpanFamilyFilter,
 };
+pub use analysis::path1_toy::{run_path1_toy, Path1Mode, Path1ToyConfig, Path1ToyReport};
 pub use analysis::skeleton2::Skeleton2Metrics;
 pub use build::acceptors::AutomatonAcceptorRef;
 pub use build::alphabet::{alphabet_from_file, toy_alphabet_xy, toy_alphabet_xyz};

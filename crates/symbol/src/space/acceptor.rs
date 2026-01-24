@@ -292,6 +292,54 @@ impl ChannelPairsAcceptor {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MaxAlternationsState {
+    prev: Option<usize>,
+    alternations: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct MaxAlternationsAcceptor {
+    max_alternations: usize,
+}
+
+impl MaxAlternationsAcceptor {
+    pub fn new(max_alternations: usize) -> Self {
+        Self { max_alternations }
+    }
+
+    pub fn max_alternations(&self) -> usize {
+        self.max_alternations
+    }
+}
+
+impl WordAcceptor for MaxAlternationsAcceptor {
+    type State = MaxAlternationsState;
+
+    fn start(&self) -> Self::State {
+        MaxAlternationsState {
+            prev: None,
+            alternations: 0,
+        }
+    }
+
+    fn step(&self, state: &Self::State, next: usize) -> Option<Self::State> {
+        let mut alternations = state.alternations;
+        if let Some(prev) = state.prev {
+            if prev != next {
+                alternations = alternations.saturating_add(1);
+            }
+        }
+        if alternations > self.max_alternations {
+            return None;
+        }
+        Some(MaxAlternationsState {
+            prev: Some(next),
+            alternations,
+        })
+    }
+}
+
 impl WordAcceptor for ChannelPairsAcceptor {
     type State = Option<usize>;
 

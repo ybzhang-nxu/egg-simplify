@@ -8,11 +8,11 @@ use serde::Deserialize;
 use mpl_experiments::{
     load_filtration_spec, load_spec, prefix_from_names, render_cross_loop_scan_index,
     run_count_only, run_cross_loop, run_cross_loop_scan, run_esymb_hankel_subblock,
-    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, write_count_only,
-    write_cross_loop_outputs, write_cross_loop_scan_outputs, write_filtration_summary,
-    write_outputs, AlphabetMode, CoefSet, CrossLoopOptions, CrossLoopScanOptions,
-    EsymbHankelSubblockConfig, EsymbRankScanConfig, EsymbSpanDepsConfig, NormalizeChoice,
-    PairsMode, RowFilter, SpanFamilyFilter, SuffixSpec,
+    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, run_path1_toy,
+    write_count_only, write_cross_loop_outputs, write_cross_loop_scan_outputs,
+    write_filtration_summary, write_outputs, AlphabetMode, CoefSet, CrossLoopOptions,
+    CrossLoopScanOptions, EsymbHankelSubblockConfig, EsymbRankScanConfig, EsymbSpanDepsConfig,
+    NormalizeChoice, PairsMode, Path1Mode, Path1ToyConfig, RowFilter, SpanFamilyFilter, SuffixSpec,
 };
 
 fn main() {
@@ -37,6 +37,7 @@ fn run() -> Result<(), String> {
         "esymb-rank-scan" => esymb_rank_scan(args.collect()),
         "esymb-span-deps" => esymb_span_deps(args.collect()),
         "esymb-hankel-subblock" => esymb_hankel_subblock(args.collect()),
+        "path1-toy" => path1_toy(args.collect()),
         "--help" | "-h" => {
             print_help();
             Ok(())
@@ -963,6 +964,107 @@ fn esymb_hankel_subblock(args: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+fn path1_toy(args: Vec<String>) -> Result<(), String> {
+    let mut mode = Path1Mode::Oracle;
+    let mut out_dir: Option<PathBuf> = None;
+    let mut weights: Option<Vec<usize>> = None;
+    let mut loops: Option<Vec<usize>> = None;
+    let mut max_words: u64 = 40_000;
+    let mut max_alternations = 3usize;
+    let mut max_terms: Option<usize> = None;
+    let mut export_oracle_jsonl = false;
+    let mut run_esymb = false;
+
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--mode" => {
+                idx += 1;
+                let value = next_arg(&args, &mut idx, "--mode")?;
+                mode = match value.as_str() {
+                    "oracle" => Path1Mode::Oracle,
+                    "scaled" => Path1Mode::Scaled,
+                    other => return Err(format!("invalid --mode value: {other}")),
+                };
+            }
+            "--out-dir" | "--out" => {
+                idx += 1;
+                out_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--out-dir")?));
+            }
+            "--weights" => {
+                idx += 1;
+                weights = Some(parse_loop_list(&args, &mut idx, "--weights")?);
+            }
+            "--loops" => {
+                idx += 1;
+                loops = Some(parse_loop_list(&args, &mut idx, "--loops")?);
+            }
+            "--max-words" => {
+                idx += 1;
+                max_words = parse_u64(&next_arg(&args, &mut idx, "--max-words")?, "--max-words")?;
+            }
+            "--max-alternations" => {
+                idx += 1;
+                max_alternations = parse_usize(
+                    &next_arg(&args, &mut idx, "--max-alternations")?,
+                    "--max-alternations",
+                )?;
+            }
+            "--max-terms" => {
+                idx += 1;
+                max_terms = Some(parse_usize(
+                    &next_arg(&args, &mut idx, "--max-terms")?,
+                    "--max-terms",
+                )?);
+            }
+            "--export-jsonl" => {
+                idx += 1;
+                export_oracle_jsonl = true;
+            }
+            "--run-esymb" => {
+                idx += 1;
+                run_esymb = true;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            other => return Err(format!("unknown arg: {other}")),
+        }
+    }
+
+    let out_dir = out_dir.unwrap_or_else(|| PathBuf::from("reports/path1_toy"));
+    let weights = weights.unwrap_or_else(|| (1..=12).collect());
+    let loops = loops.unwrap_or_else(|| (1..=24).collect());
+
+    let cfg = Path1ToyConfig {
+        mode,
+        out_dir: out_dir.clone(),
+        weights,
+        loops,
+        max_words,
+        max_alternations,
+        max_terms,
+        export_oracle_jsonl,
+        run_esymb,
+    };
+
+    let report = run_path1_toy(&cfg).map_err(|err| err.to_string())?;
+    println!(
+        "path1-toy mode={} out={}",
+        report.mode.as_str(),
+        report.out_dir.display()
+    );
+    match report.mode {
+        Path1Mode::Oracle => println!("weights={:?}", report.weights),
+        Path1Mode::Scaled => println!(
+            "loops={:?} esymb_pipeline={}",
+            report.loops, report.ran_esymb
+        ),
+    }
+    Ok(())
+}
+
 fn next_value<I>(args: &mut I, flag: &str) -> Result<String, String>
 where
     I: Iterator<Item = String>,
@@ -985,6 +1087,7 @@ fn print_help() {
     println!("  mpl-experiments esymb-rank-scan --data-dir <dir> --loops <list> [options]");
     println!("  mpl-experiments esymb-span-deps --observables <path> [options]");
     println!("  mpl-experiments esymb-hankel-subblock --in <path> --r <n> --k <n> [options]");
+    println!("  mpl-experiments path1-toy --mode <oracle|scaled> [options]");
     println!();
     println!("Options:");
     println!("  --spec <path>          Experiment TOML spec");
@@ -1051,6 +1154,14 @@ fn print_help() {
     println!("  --loops <list>        Loop list or range (esymb-hankel-subblock)");
     println!("  --primes <list>       Prime list for mod-p rank (esymb-hankel-subblock)");
     println!("  --exact               Enable mod-p row/col dependencies (max-rank prime)");
+    println!("  --mode <name>         oracle|scaled (path1-toy)");
+    println!("  --weights <list>      Weight list/range (path1-toy oracle, default: 1..12)");
+    println!("  --loops <list>        Loop list/range (path1-toy scaled, default: 1..24)");
+    println!("  --max-words <n>       Word cap for path1-toy (default: 40000)");
+    println!("  --max-alternations <n>  Max alternations (path1-toy scaled, default: 3)");
+    println!("  --max-terms <n>       Term cap for synthesized symbols (path1-toy)");
+    println!("  --export-jsonl        Write oracle symbols_jsonl (path1-toy)");
+    println!("  --run-esymb           Run ESymb pipeline (path1-toy scaled)");
     println!("  --help                 Show this help");
 }
 

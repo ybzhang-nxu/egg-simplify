@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.2.2 release)
+# mpl-simplifier (v0.2.3 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -92,6 +92,7 @@ Core API:
 - `Alphabet`: normalized letters + names with a deterministic canonical-string map.
 - `WordConstraints`: first-letter and adjacency constraints.
 - `WordAcceptor`: DFA-style word filtering (adapters preserve M1 constraints).
+- `MaxAlternationsAcceptor`: limit the number of letter alternations.
 - `KGramAcceptor` (k=3): allowed/forbidden triplet constraints.
 - `GenealogicalAcceptor`: channel/letter-level "after seeing X, forbid Y later".
 - `Basis`: word columns + nullspace vectors with a free-variable convention.
@@ -195,7 +196,7 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.2.2
+# => 0.2.3
 ```
 
 ## Testing & Benchmarks
@@ -278,6 +279,30 @@ Manual tools:
   and `docs/experiments_format_m6.md` for the filtration schema and outputs.
 - See `docs/performance_bottlenecks.md` for known scale limits.
 
+## Path1 Baseline
+Deterministic toy baseline for the space engine and ESymb A/B/C pipeline.
+
+Oracle mode (toy oracle check, dim == w+1):
+```bash
+cargo run -p mpl-experiments -- path1-toy --mode oracle --weights 1..12 --out-dir reports/path1_toy
+```
+
+Scaled mode (synthetic ESymb JSONL + pipeline):
+```bash
+cargo run -p mpl-experiments -- path1-toy --mode scaled --loops 2..24 --max-alternations 3 --run-esymb --out-dir reports/path1_toy
+```
+
+Notes:
+- `--run-esymb` requires loops >= 2 because the pipeline uses prefix-suffix r=2,k=2.
+- Outputs land under `reports/path1_toy/oracle` and `reports/path1_toy/scaled`.
+- Scaled mode supports high-loop JSONL generation (e.g., loops 1..24) and can be
+  fed into `esymb-rank-scan` + `esymb-hankel-subblock --exact` for dependency analysis.
+
+## v0.2.3 Release Notes
+- Added `path1-toy` for deterministic Path1 baselines (toy oracle + scaled synthetic ESymb JSONL).
+- Added `MaxAlternationsAcceptor` to cap alternations for high-loop enumeration.
+- Documented high-loop data generation and Hankel dependency analysis flow.
+
 ## v0.2.2 Release Notes
 - Added ESymb marginals analysis tools in `mpl-experiments`:
   `esymb-span-deps` (forbidden/nonzero keys, equivalence classes, sparse relations,
@@ -350,7 +375,7 @@ Manual tools:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions are aligned to `0.2.2`.
+- Milestone note: crate versions are aligned to `0.2.3`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.
