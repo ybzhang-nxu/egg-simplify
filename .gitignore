@@ -11,3 +11,6 @@ toymodel.md
 reports/
 scripts/
 data/
+ESymb_NextStage_A_Marginals*
+ESymb_NextStage_B_SpanDeps*
+ESymb_NextStage_C_HankelSubblock*

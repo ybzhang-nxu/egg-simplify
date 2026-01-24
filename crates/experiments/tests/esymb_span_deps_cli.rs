@@ -44,11 +44,21 @@ fn esymb_span_deps_cli_writes_outputs() {
     let stats_path = out_dir.join("span_stats.csv");
     let equiv_path = out_dir.join("equiv_classes.csv");
     let deps_path = out_dir.join("span_deps.csv");
+    let basis_keys_path = out_dir.join("basis_keys.csv");
+    let basis_exp_path = out_dir.join("basis_expansions_modp.csv");
+    let mask_path = out_dir.join("support_mask.csv");
+    let mask_hist_path = out_dir.join("mask_histogram.csv");
+    let allowed_graph_path = out_dir.join("allowed_graph.csv");
     let md_path = out_dir.join("span_deps.md");
 
     assert!(stats_path.exists());
     assert!(equiv_path.exists());
     assert!(deps_path.exists());
+    assert!(basis_keys_path.exists());
+    assert!(basis_exp_path.exists());
+    assert!(mask_path.exists());
+    assert!(mask_hist_path.exists());
+    assert!(allowed_graph_path.exists());
     assert!(md_path.exists());
 
     let stats = fs::read_to_string(stats_path).expect("read span_stats.csv");
@@ -62,9 +72,33 @@ fn esymb_span_deps_cli_writes_outputs() {
         deps.contains("prefix,3,\"1*prefix|r=1,p=a\",\"1*prefix|r=1,p=d\",\"-1*prefix|r=1,p=e\"")
     );
 
+    let basis_keys = fs::read_to_string(basis_keys_path).expect("read basis_keys.csv");
+    assert!(basis_keys.contains("prefix,0,\"prefix|r=1,p=a\""));
+    assert!(basis_keys.contains("prefix,1,\"prefix|r=1,p=d\""));
+
+    let basis_exp = fs::read_to_string(basis_exp_path).expect("read basis_expansions_modp.csv");
+    assert!(basis_exp.contains("prefix,\"prefix|r=1,p=c\","));
+    assert!(basis_exp.contains(",2;0"));
+    assert!(basis_exp.contains("prefix,\"prefix|r=1,p=e\","));
+    assert!(basis_exp.contains(",1;1"));
+
+    let mask = fs::read_to_string(mask_path).expect("read support_mask.csv");
+    assert!(mask.contains("\"prefix|r=1,p=a\",3,2"));
+    let mask_lines = mask.lines().collect::<Vec<_>>();
+    assert_eq!(mask_lines.get(1), Some(&"\"prefix|r=1,p=a\",3,2"));
+
+    let mask_hist = fs::read_to_string(mask_hist_path).expect("read mask_histogram.csv");
+    assert!(mask_hist.contains("0,1"));
+    assert!(mask_hist.contains("3,5"));
+
+    let allowed_graph = fs::read_to_string(allowed_graph_path).expect("read allowed_graph.csv");
+    assert_eq!(allowed_graph.lines().count(), 1);
+
     let md = fs::read_to_string(md_path).expect("read span_deps.md");
     assert!(md.contains("loops = [1, 2]"));
     assert!(md.contains("## family_stats"));
+    assert!(md.contains("## basis_keys"));
+    assert!(md.contains("## mask_histogram_summary"));
 }
 
 #[test]
