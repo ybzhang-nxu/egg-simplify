@@ -172,20 +172,18 @@ fn generator_matches_esymb_rank_scan_csvs() {
         .expect("read gen marginals_observables.csv");
     let scan_observables = fs::read(scan_dir.join("marginals_observables.csv"))
         .expect("read scan marginals_observables.csv");
-    assert_eq!(gen_observables, scan_observables, "observables csv mismatch");
+    assert_eq!(
+        gen_observables, scan_observables,
+        "observables csv mismatch"
+    );
 
-    let gen_rank =
-        fs::read(gen_dir.join("marginals_matrix_rank.csv")).expect("read gen rank csv");
+    let gen_rank = fs::read(gen_dir.join("marginals_matrix_rank.csv")).expect("read gen rank csv");
     let scan_rank =
         fs::read(scan_dir.join("marginals_matrix_rank.csv")).expect("read scan rank csv");
     assert_eq!(gen_rank, scan_rank, "matrix rank csv mismatch");
 }
 
-fn assert_last_entry_span(
-    sym: &Symbol,
-    name_map: &BTreeMap<String, String>,
-    label: &str,
-) {
+fn assert_last_entry_span(sym: &Symbol, name_map: &BTreeMap<String, String>, label: &str) {
     let buckets = bucket_prefix_by_last(sym, name_map);
     let p_u = buckets.get("u").cloned().unwrap_or_else(Symbol::zero);
     let p_1u = buckets.get("1-u").cloned().unwrap_or_else(Symbol::zero);

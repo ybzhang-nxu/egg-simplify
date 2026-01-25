@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use mpl_experiments::{
-    pentaladder_alphabet, symbol_psi, symbol_psi1_golden, symbol_psi2_blocks,
-    symbol_psi2_golden, symbol_q_blocks_expanded, trace_psi2_origin_details,
-    trace_psi2_origin_report, OriginKind, OriginTraceTerm,
+    pentaladder_alphabet, symbol_psi, symbol_psi1_golden, symbol_psi2_blocks, symbol_psi2_golden,
+    symbol_q_blocks_expanded, trace_psi2_origin_details, trace_psi2_origin_report, OriginKind,
+    OriginTraceTerm,
 };
 use mpl_symbol::{Coeff, Symbol, Word};
 use num_traits::Zero;
@@ -109,9 +109,18 @@ fn diff_psi2_blocks(
         e3.len()
     ));
     for (label, terms) in [
-        ("left_only", left_only_terms.iter().map(|(w, _)| w).collect::<Vec<_>>()),
-        ("right_only", right_only_terms.iter().map(|(w, _)| w).collect::<Vec<_>>()),
-        ("coeff_mismatch", mismatch_terms.iter().map(|(w, _, _)| w).collect::<Vec<_>>()),
+        (
+            "left_only",
+            left_only_terms.iter().map(|(w, _)| w).collect::<Vec<_>>(),
+        ),
+        (
+            "right_only",
+            right_only_terms.iter().map(|(w, _)| w).collect::<Vec<_>>(),
+        ),
+        (
+            "coeff_mismatch",
+            mismatch_terms.iter().map(|(w, _, _)| w).collect::<Vec<_>>(),
+        ),
     ] {
         if terms.is_empty() {
             continue;
@@ -121,9 +130,7 @@ fn diff_psi2_blocks(
             let e1c = e1.get(word).cloned().unwrap_or_else(Coeff::zero);
             let e2c = e2.get(word).cloned().unwrap_or_else(Coeff::zero);
             let e3c = e3.get(word).cloned().unwrap_or_else(Coeff::zero);
-            out.push(format!(
-                "{word}: e1={e1c}, e2={e2c}, e3={e3c}"
-            ));
+            out.push(format!("{word}: e1={e1c}, e2={e2c}, e3={e3c}"));
         }
     }
     out.join("\n")
@@ -190,9 +197,7 @@ fn diff_psi2_origins(
     out.join("\n")
 }
 
-fn build_origin_map(
-    trace: &[OriginTraceTerm],
-) -> BTreeMap<Word, BTreeMap<OriginKind, Coeff>> {
+fn build_origin_map(trace: &[OriginTraceTerm]) -> BTreeMap<Word, BTreeMap<OriginKind, Coeff>> {
     let mut map: BTreeMap<Word, BTreeMap<OriginKind, Coeff>> = BTreeMap::new();
     for term in trace {
         let entry = map.entry(term.word.clone()).or_default();
@@ -214,10 +219,7 @@ fn diff_last_entry_blocks() -> String {
     let p_1u = buckets.get("1-u").cloned().unwrap_or_else(Symbol::zero);
     let p_v = buckets.get("v").cloned().unwrap_or_else(Symbol::zero);
     let p_1v = buckets.get("1-v").cloned().unwrap_or_else(Symbol::zero);
-    let p_1w = buckets
-        .get("1-w")
-        .cloned()
-        .unwrap_or_else(Symbol::zero);
+    let p_1w = buckets.get("1-w").cloned().unwrap_or_else(Symbol::zero);
 
     let q_uv_extracted = symbol_add(&p_u, &p_v);
     let q_uov_extracted = symbol_sub(&p_u, &p_v);
@@ -269,10 +271,7 @@ fn psi2_qblock_tail_coeffs() {
     let buckets = bucket_prefix_by_last(&sym, &name_map);
     let p_u = buckets.get("u").cloned().unwrap_or_else(Symbol::zero);
     let p_v = buckets.get("v").cloned().unwrap_or_else(Symbol::zero);
-    let p_1w = buckets
-        .get("1-w")
-        .cloned()
-        .unwrap_or_else(Symbol::zero);
+    let p_1w = buckets.get("1-w").cloned().unwrap_or_else(Symbol::zero);
     let q_uv_extracted = symbol_add(&p_u, &p_v);
     let q_w_extracted = p_1w;
 

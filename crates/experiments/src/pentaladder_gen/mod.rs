@@ -17,17 +17,7 @@ use crate::analysis::esymb_rank_scan::observables::{
 };
 use crate::ExperimentError;
 
-const LETTER_NAMES: [&str; 9] = [
-    "u",
-    "v",
-    "1-u",
-    "1-v",
-    "1-w",
-    "w",
-    "1-uw",
-    "1-vw",
-    "Delta",
-];
+const LETTER_NAMES: [&str; 9] = ["u", "v", "1-u", "1-v", "1-w", "w", "1-uw", "1-vw", "Delta"];
 const LAST_ENTRY_NAMES: [&str; 5] = ["u", "1-u", "v", "1-v", "1-w"];
 const DEFAULT_MAX_TERMS: u64 = 5_000_000;
 const DEFAULT_VALIDATE_INTEGRABILITY_MAX_LOOP: usize = 4;
@@ -471,8 +461,7 @@ fn integrate_word_simple_trace(
         }
         let mut rebuilt = prefix.to_vec();
         rebuilt.push(last_letter);
-        let mut terms =
-            integrate_word_simple_atomic_trace(&rebuilt, term_coeff, &atom_ctx)?;
+        let mut terms = integrate_word_simple_atomic_trace(&rebuilt, term_coeff, &atom_ctx)?;
         out.append(&mut terms);
     }
     Ok(out)
@@ -582,8 +571,7 @@ fn integrate_word_simple_atomic_trace(
             last.to_canonical_string()
         ))
     })?;
-    let diff =
-        shift_difference_expr(args.kernel_c, &d, args.alpha, args.stage).map_err(|err| {
+    let diff = shift_difference_expr(args.kernel_c, &d, args.alpha, args.stage).map_err(|err| {
         let word_str = word
             .iter()
             .map(|expr| expr.to_canonical_string())
@@ -638,7 +626,9 @@ fn endpoint_terms_trace(
 ) -> Vec<RawTraceTerm> {
     let t_plus_c = expr_add(vec![ctx.t.clone(), kernel_c.clone()]);
     let mut out = Vec::new();
-    if let Some(upper) = eval_letter_at_endpoint(&t_plus_c, Endpoint::Infinity, ctx).ok().flatten()
+    if let Some(upper) = eval_letter_at_endpoint(&t_plus_c, Endpoint::Infinity, ctx)
+        .ok()
+        .flatten()
     {
         out.push(RawTraceTerm {
             word: vec![upper],
@@ -647,7 +637,10 @@ fn endpoint_terms_trace(
             meta: make_meta(stage, kernel_c, None, None, None, None, None),
         });
     }
-    if let Some(lower) = eval_letter_at_endpoint(&t_plus_c, Endpoint::Zero, ctx).ok().flatten() {
+    if let Some(lower) = eval_letter_at_endpoint(&t_plus_c, Endpoint::Zero, ctx)
+        .ok()
+        .flatten()
+    {
         out.push(RawTraceTerm {
             word: vec![lower],
             coeff: -coeff,
@@ -779,9 +772,17 @@ fn expand_trace_details(
                     .normalized_last
                     .as_ref()
                     .map(|expr| expr.to_canonical_string()),
-                last: term.meta.last.as_ref().map(|expr| expr.to_canonical_string()),
+                last: term
+                    .meta
+                    .last
+                    .as_ref()
+                    .map(|expr| expr.to_canonical_string()),
                 d: term.meta.d.as_ref().map(|expr| expr.to_canonical_string()),
-                diff: term.meta.diff.as_ref().map(|expr| expr.to_canonical_string()),
+                diff: term
+                    .meta
+                    .diff
+                    .as_ref()
+                    .map(|expr| expr.to_canonical_string()),
                 atoms,
             };
             out.entry(word).or_default().push(detail);
@@ -833,7 +834,9 @@ pub fn symbol_q_blocks_expanded() -> Result<QBlocksExpanded, ExperimentError> {
 }
 
 /// Drummond-style ESymb generator: marginals + optional JSONL for penta-ladder symbols.
-pub fn run_pentaladder_gen(cfg: &PentaladderGenConfig) -> Result<PentaladderGenReport, ExperimentError> {
+pub fn run_pentaladder_gen(
+    cfg: &PentaladderGenConfig,
+) -> Result<PentaladderGenReport, ExperimentError> {
     if cfg.out_dir.as_os_str().is_empty() {
         return Err(ExperimentError::InvalidConfig(
             "missing out_dir".to_string(),
@@ -1008,11 +1011,8 @@ pub fn run_pentaladder_gen(cfg: &PentaladderGenConfig) -> Result<PentaladderGenR
     }
 
     collector.validate()?;
-    let (sequences, values) = collector.sequences_and_values(
-        collect_prefix,
-        collect_suffix,
-        collect_pair,
-    );
+    let (sequences, values) =
+        collector.sequences_and_values(collect_prefix, collect_suffix, collect_pair);
     fs::write(
         cfg.out_dir.join("marginals_observables.csv"),
         render_marginals_observables_csv(&sequences, &values, &loops),
@@ -1208,7 +1208,10 @@ fn psi_step_y(
 fn u_x_expr(ctx: &PentaContext) -> Expr {
     // u * (t + w) / (t + u w)
     expr_div(
-        expr_mul(vec![ctx.u.clone(), expr_add(vec![ctx.t.clone(), ctx.w.clone()])]),
+        expr_mul(vec![
+            ctx.u.clone(),
+            expr_add(vec![ctx.t.clone(), ctx.w.clone()]),
+        ]),
         expr_add(vec![ctx.t.clone(), ctx.uw.clone()]),
     )
 }
@@ -1216,16 +1219,25 @@ fn u_x_expr(ctx: &PentaContext) -> Expr {
 fn w_x_expr(ctx: &PentaContext) -> Expr {
     // w * (t + 1) / (t + w)
     expr_div(
-        expr_mul(vec![ctx.w.clone(), expr_add(vec![ctx.t.clone(), ctx.one.clone()])]),
+        expr_mul(vec![
+            ctx.w.clone(),
+            expr_add(vec![ctx.t.clone(), ctx.one.clone()]),
+        ]),
         expr_add(vec![ctx.t.clone(), ctx.w.clone()]),
     )
 }
 
 fn v_y_expr(ctx: &PentaContext) -> Expr {
     // v * (t + 1) / (v t + 1)
-    let vt_plus_one = expr_add(vec![expr_mul(vec![ctx.v.clone(), ctx.t.clone()]), ctx.one.clone()]);
+    let vt_plus_one = expr_add(vec![
+        expr_mul(vec![ctx.v.clone(), ctx.t.clone()]),
+        ctx.one.clone(),
+    ]);
     expr_div(
-        expr_mul(vec![ctx.v.clone(), expr_add(vec![ctx.t.clone(), ctx.one.clone()])]),
+        expr_mul(vec![
+            ctx.v.clone(),
+            expr_add(vec![ctx.t.clone(), ctx.one.clone()]),
+        ]),
         vt_plus_one,
     )
 }
@@ -1326,8 +1338,7 @@ fn integrate_symbol_simple(
                 stage = stage.as_str()
             );
         }
-        let expanded =
-            integrate_word_simple(word.letters(), *coeff, kernel_c, ctx, alpha, stage)?;
+        let expanded = integrate_word_simple(word.letters(), *coeff, kernel_c, ctx, alpha, stage)?;
         for (letters, value) in expanded {
             if value.is_zero() {
                 continue;
@@ -1446,22 +1457,21 @@ fn integrate_word_simple_atomic(
             last.to_canonical_string()
         ))
     })?;
-    let diff =
-        shift_difference_expr(args.kernel_c, &d, args.alpha, args.stage).map_err(|err| {
-            let word_str = word
-                .iter()
-                .map(|expr| expr.to_canonical_string())
-                .collect::<Vec<_>>()
-                .join(" ");
-            ExperimentError::InvalidConfig(format!(
-                "unexpected shift diff for d={} from last={} (stage={}, kernel={}, word=[{}]): {err}",
-                d.to_canonical_string(),
-                last.to_canonical_string(),
-                args.stage.as_str(),
-                args.kernel_c.to_canonical_string(),
-                word_str
-            ))
-        })?;
+    let diff = shift_difference_expr(args.kernel_c, &d, args.alpha, args.stage).map_err(|err| {
+        let word_str = word
+            .iter()
+            .map(|expr| expr.to_canonical_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        ExperimentError::InvalidConfig(format!(
+            "unexpected shift diff for d={} from last={} (stage={}, kernel={}, word=[{}]): {err}",
+            d.to_canonical_string(),
+            last.to_canonical_string(),
+            args.stage.as_str(),
+            args.kernel_c.to_canonical_string(),
+            word_str
+        ))
+    })?;
     let Some(append) = diff else {
         return Ok(out);
     };
@@ -1644,9 +1654,7 @@ fn expr_degree_coeff(expr: &Expr, var: &str) -> Result<Option<(i32, Expr)>, Expe
                 };
                 degree = degree
                     .checked_add(deg)
-                    .ok_or_else(|| {
-                        ExperimentError::InvalidConfig("degree overflow".to_string())
-                    })?;
+                    .ok_or_else(|| ExperimentError::InvalidConfig("degree overflow".to_string()))?;
                 coeff = expr_mul(vec![coeff, child_coeff]);
             }
             Ok(Some((degree, coeff)))
@@ -1917,18 +1925,12 @@ struct FractionExpr {
 fn simplify_expr(expr: &Expr) -> Expr {
     match expr.normalize() {
         Expr::Add(children) => {
-            let simplified = children
-                .iter()
-                .map(simplify_expr)
-                .collect::<Vec<_>>();
+            let simplified = children.iter().map(simplify_expr).collect::<Vec<_>>();
             let combined = simplify_add_coeffs(&Expr::Add(simplified));
             factor_common_terms(&combined)
         }
         Expr::Mul(children) => {
-            let simplified = children
-                .iter()
-                .map(simplify_expr)
-                .collect::<Vec<_>>();
+            let simplified = children.iter().map(simplify_expr).collect::<Vec<_>>();
             if let Some(expanded) = expand_binomial_mul(&simplified) {
                 return simplify_expr(&expanded);
             }
@@ -2619,7 +2621,9 @@ fn merge_dlog_terms(items: Vec<(Expr, Coeff)>) -> Vec<(Expr, Coeff)> {
         let entry = map.entry(key).or_insert((expr, Coeff::zero()));
         entry.1 += coeff;
     }
-    map.into_values().filter(|(_, coeff)| !coeff.is_zero()).collect()
+    map.into_values()
+        .filter(|(_, coeff)| !coeff.is_zero())
+        .collect()
 }
 
 fn linear_shift(expr: &Expr, var: &str) -> Option<Expr> {
@@ -2822,7 +2826,10 @@ fn substitute_expr(expr: &Expr, subst: &BTreeMap<String, Expr>) -> Expr {
     }
 }
 
-fn expand_symbol_to_alphabet(sym: &Symbol, alpha: &AlphabetSpec) -> Result<Symbol, ExperimentError> {
+fn expand_symbol_to_alphabet(
+    sym: &Symbol,
+    alpha: &AlphabetSpec,
+) -> Result<Symbol, ExperimentError> {
     let mut terms = Vec::new();
     for (word, coeff) in sym.terms() {
         if coeff.is_zero() {
@@ -2971,7 +2978,13 @@ fn build_letter_polys(letters: &[Expr]) -> Vec<LetterPoly> {
         .iter()
         .map(|expr| {
             let poly = ratpoly_from_expr(expr)
-                .and_then(|rat| if rat_poly_is_one(&rat.den) { Some(rat.num) } else { None })
+                .and_then(|rat| {
+                    if rat_poly_is_one(&rat.den) {
+                        Some(rat.num)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or_default();
             LetterPoly {
                 expr: expr.clone(),
@@ -3335,10 +3348,10 @@ mod ratpoly_tests {
         let rat = ratpoly_from_expr(&expr).expect("ratpoly_from_expr failed");
         let alpha = ctx.alphabet_spec();
         let normalized = normalize_letter_for_alphabet(&expr, &alpha);
-        let rebuilt = ratpoly_to_expr_for_alphabet(&rat, &alpha.letter_polys)
-            .unwrap_or_else(|| expr.clone());
-        let expanded = dlog_expand_letter(&normalized, &alpha)
-            .expect("dlog_expand_letter should succeed");
+        let rebuilt =
+            ratpoly_to_expr_for_alphabet(&rat, &alpha.letter_polys).unwrap_or_else(|| expr.clone());
+        let expanded =
+            dlog_expand_letter(&normalized, &alpha).expect("dlog_expand_letter should succeed");
         assert!(
             !expanded.is_empty(),
             "normalized: {}, rebuilt: {}",
@@ -3357,8 +3370,8 @@ mod ratpoly_tests {
         let rat = ratpoly_from_expr(&expr).expect("ratpoly_from_expr failed");
         assert!(rat_poly_is_one(&rat.den));
         let letters = ctx.alphabet_spec().letter_polys;
-        let factors = factor_poly_to_letters(&rat.num, &letters)
-            .expect("factor_poly_to_letters failed");
+        let factors =
+            factor_poly_to_letters(&rat.num, &letters).expect("factor_poly_to_letters failed");
         let rebuilt = expr_mul(factors);
         let expanded = dlog_expand_letter(&rebuilt, &ctx.alphabet_spec())
             .expect("dlog_expand_letter should succeed");
@@ -3380,8 +3393,8 @@ mod ratpoly_tests {
             expr_pow(ctx.delta.clone(), 2),
         ]);
         let expr = expr_div(numerator, denominator);
-        let expanded = dlog_expand_letter(&expr, &alpha)
-            .expect("dlog_expand_letter should succeed");
+        let expanded =
+            dlog_expand_letter(&expr, &alpha).expect("dlog_expand_letter should succeed");
         let mut map: BTreeMap<String, Coeff> = BTreeMap::new();
         for (letter, coeff) in expanded {
             map.insert(expr_key(&letter), coeff);
@@ -3443,7 +3456,7 @@ mod shift_tests {
             normalized_last: &normalized_last,
         };
         let out = integrate_word_simple_atomic(&word, Coeff::one(), &atom_ctx)
-        .expect("integrate_word_simple_atomic");
+            .expect("integrate_word_simple_atomic");
         assert!(out.is_empty(), "expected no last-entry contribution");
     }
 
@@ -3464,7 +3477,7 @@ mod shift_tests {
             normalized_last: &normalized_last,
         };
         let out = integrate_word_simple_atomic(&word, Coeff::one(), &atom_ctx)
-        .expect("integrate_word_simple_atomic");
+            .expect("integrate_word_simple_atomic");
         assert!(out.is_empty(), "expected no last-entry contribution");
     }
 
@@ -3484,7 +3497,7 @@ mod shift_tests {
             normalized_last: &normalized_last,
         };
         let out = integrate_word_simple_atomic(&word, Coeff::one(), &atom_ctx)
-        .expect("integrate_word_simple_atomic");
+            .expect("integrate_word_simple_atomic");
         assert!(out.is_empty(), "expected no last-entry contribution");
     }
 
@@ -3736,9 +3749,8 @@ fn write_symbol_jsonl(
             merged_terms,
         },
     };
-    let meta_line = serde_json::to_string(&meta).map_err(|err| {
-        ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-    })?;
+    let meta_line = serde_json::to_string(&meta)
+        .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
     writer.write_all(meta_line.as_bytes())?;
     writer.write_all(b"\n")?;
 
@@ -3755,9 +3767,8 @@ fn write_symbol_jsonl(
             word: names,
             coeff: format_coeff(coeff),
         };
-        let encoded = serde_json::to_string(&line).map_err(|err| {
-            ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-        })?;
+        let encoded = serde_json::to_string(&line)
+            .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
         writer.write_all(encoded.as_bytes())?;
         writer.write_all(b"\n")?;
     }
@@ -3865,7 +3876,11 @@ fn q_w_symbol(ctx: &PentaContext) -> Symbol {
                 ctx.uw.clone(),
                 ctx.one_minus_uw.clone(),
                 expr_div(
-                    expr_mul(vec![ctx.one_minus_u.clone(), ctx.w.clone(), ctx.delta.clone()]),
+                    expr_mul(vec![
+                        ctx.one_minus_u.clone(),
+                        ctx.w.clone(),
+                        ctx.delta.clone(),
+                    ]),
                     expr_mul(vec![
                         ctx.v.clone(),
                         ctx.one_minus_w.clone(),

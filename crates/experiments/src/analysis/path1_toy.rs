@@ -197,7 +197,11 @@ fn run_oracle(cfg: &Path1ToyConfig) -> Result<Vec<usize>, ExperimentError> {
         }
 
         push_basis_stats_row(&mut stats_csv, *weight, None, stats);
-        let status = if stats.dim == weight + 1 { "pass" } else { "fail" };
+        let status = if stats.dim == weight + 1 {
+            "pass"
+        } else {
+            "fail"
+        };
         checks_csv.push_record([
             weight.to_string(),
             (weight + 1).to_string(),
@@ -210,7 +214,10 @@ fn run_oracle(cfg: &Path1ToyConfig) -> Result<Vec<usize>, ExperimentError> {
     }
 
     fs::write(oracle_dir.join("basis_stats.csv"), stats_csv.into_string())?;
-    fs::write(oracle_dir.join("oracle_checks.csv"), checks_csv.into_string())?;
+    fs::write(
+        oracle_dir.join("oracle_checks.csv"),
+        checks_csv.into_string(),
+    )?;
 
     Ok(weights)
 }
@@ -278,9 +285,10 @@ fn run_scaled(cfg: &Path1ToyConfig) -> Result<(Vec<usize>, bool), ExperimentErro
         let weight = loop_value
             .checked_mul(2)
             .ok_or_else(|| ExperimentError::InvalidConfig("loop * 2 overflow".to_string()))?;
-        let predicted = predict_max_alternations_words(weight, cfg.max_alternations).ok_or_else(
-            || ExperimentError::InvalidConfig(format!("weight {weight} word count overflow")),
-        )?;
+        let predicted =
+            predict_max_alternations_words(weight, cfg.max_alternations).ok_or_else(|| {
+                ExperimentError::InvalidConfig(format!("weight {weight} word count overflow"))
+            })?;
         if predicted > cfg.max_words {
             return Err(ExperimentError::InvalidConfig(format!(
                 "loop {loop_value} weight {weight} has {predicted} words (max_words={})",
@@ -288,9 +296,13 @@ fn run_scaled(cfg: &Path1ToyConfig) -> Result<(Vec<usize>, bool), ExperimentErro
             )));
         }
 
-        let basis =
-            build_integrable_basis_with_acceptor_with_stats(&alpha, &acceptor, weight, Some(&budget))
-                .map_err(map_basis_error)?;
+        let basis = build_integrable_basis_with_acceptor_with_stats(
+            &alpha,
+            &acceptor,
+            weight,
+            Some(&budget),
+        )
+        .map_err(map_basis_error)?;
         let stats = basis.stats();
 
         let seed = seed_from_params(Path1Mode::Scaled, weight, Some(cfg.max_alternations));
@@ -326,8 +338,14 @@ fn run_scaled(cfg: &Path1ToyConfig) -> Result<(Vec<usize>, bool), ExperimentErro
         ]);
     }
 
-    fs::write(scaled_dir.join("basis_stats.csv"), basis_stats_csv.into_string())?;
-    fs::write(scaled_dir.join("loop_stats.csv"), loop_stats_csv.into_string())?;
+    fs::write(
+        scaled_dir.join("basis_stats.csv"),
+        basis_stats_csv.into_string(),
+    )?;
+    fs::write(
+        scaled_dir.join("loop_stats.csv"),
+        loop_stats_csv.into_string(),
+    )?;
 
     let mut ran_esymb = false;
     if cfg.run_esymb {
@@ -622,9 +640,8 @@ fn write_esymb_jsonl(
             merged_terms,
         },
     };
-    let meta_line = serde_json::to_string(&meta).map_err(|err| {
-        ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-    })?;
+    let meta_line = serde_json::to_string(&meta)
+        .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
     writer.write_all(meta_line.as_bytes())?;
     writer.write_all(b"\n")?;
 
@@ -643,9 +660,8 @@ fn write_esymb_jsonl(
             word,
             coeff: format_coeff(coeff),
         };
-        let encoded = serde_json::to_string(&line).map_err(|err| {
-            ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-        })?;
+        let encoded = serde_json::to_string(&line)
+            .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
         writer.write_all(encoded.as_bytes())?;
         writer.write_all(b"\n")?;
     }
@@ -772,10 +788,7 @@ fn render_summary(cfg: &Path1ToyConfig, report: &Path1ToyReport) -> String {
         }
         Path1Mode::Scaled => {
             out.push_str(&format!("loops = {:?}\n\n", report.loops));
-            out.push_str(&format!(
-                "max_alternations = {}\n\n",
-                cfg.max_alternations
-            ));
+            out.push_str(&format!("max_alternations = {}\n\n", cfg.max_alternations));
             out.push_str("## scaled_outputs\n");
             out.push_str("- `scaled/basis_stats.csv`\n");
             out.push_str("- `scaled/loop_stats.csv`\n");

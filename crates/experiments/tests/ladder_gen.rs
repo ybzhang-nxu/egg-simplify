@@ -44,9 +44,7 @@ fn combinatorial_matches_bruteforce_small() {
 fn loop_lowering_de_matches_small() {
     let mut symbols = Vec::with_capacity(LREF);
     for loop_value in 1..=LREF {
-        symbols.push(
-            ladder_symbol_combinatorial(loop_value).expect("combinatorial symbol"),
-        );
+        symbols.push(ladder_symbol_combinatorial(loop_value).expect("combinatorial symbol"));
     }
     for loop_value in 2..=LREF {
         let sym = &symbols[loop_value - 1];
@@ -135,10 +133,12 @@ fn generator_matches_esymb_rank_scan_csvs() {
         .expect("read gen marginals_observables.csv");
     let scan_observables = fs::read(scan_dir.join("marginals_observables.csv"))
         .expect("read scan marginals_observables.csv");
-    assert_eq!(gen_observables, scan_observables, "observables csv mismatch");
+    assert_eq!(
+        gen_observables, scan_observables,
+        "observables csv mismatch"
+    );
 
-    let gen_rank =
-        fs::read(gen_dir.join("marginals_matrix_rank.csv")).expect("read gen rank csv");
+    let gen_rank = fs::read(gen_dir.join("marginals_matrix_rank.csv")).expect("read gen rank csv");
     let scan_rank =
         fs::read(scan_dir.join("marginals_matrix_rank.csv")).expect("read scan rank csv");
     assert_eq!(gen_rank, scan_rank, "matrix rank csv mismatch");

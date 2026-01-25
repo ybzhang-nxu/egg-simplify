@@ -195,12 +195,8 @@ pub fn run_ladder_gen(cfg: &LadderGenConfig) -> Result<LadderGenReport, Experime
 
     if cfg.matrix_rank {
         if let Some(pair_values) = pair_values.as_ref() {
-            let rows = compute_matrix_rank_rows(
-                &loops,
-                cfg.prefix_len,
-                cfg.suffix_len,
-                pair_values,
-            )?;
+            let rows =
+                compute_matrix_rank_rows(&loops, cfg.prefix_len, cfg.suffix_len, pair_values)?;
             fs::write(
                 cfg.out_dir.join("marginals_matrix_rank.csv"),
                 render_marginals_matrix_rank_csv(&rows),
@@ -240,9 +236,11 @@ pub fn ladder_symbol_combinatorial(loop_value: usize) -> Result<Symbol, Experime
     for_each_ladder_term(loop_value, |ids, coeff| {
         let letters = ids
             .iter()
-            .map(|&id| exprs.get(id).cloned().ok_or_else(|| {
-                ExperimentError::InvalidConfig(format!("letter id {id} out of range"))
-            }))
+            .map(|&id| {
+                exprs.get(id).cloned().ok_or_else(|| {
+                    ExperimentError::InvalidConfig(format!("letter id {id} out of range"))
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?;
         terms.push((Word(letters), coeff));
         Ok(())
@@ -557,8 +555,7 @@ fn ladder_marginal_count_i128(
             }
 
             let m = n - p - 1;
-            let (fixed_z, _fixed_zbar, free_prefix, free_suffix) =
-                fixed_counts(&fixed, p, n)?;
+            let (fixed_z, _fixed_zbar, free_prefix, free_suffix) = fixed_counts(&fixed, p, n)?;
 
             let ways_prefix = pow2_i128(free_prefix)?;
             for case in z_count_cases(loop_value, m, special_id) {
@@ -689,18 +686,17 @@ fn ladder_letter_exprs() -> Vec<Expr> {
     let z = Expr::Var("z".to_string()).normalize();
     let zbar = Expr::Var("zbar".to_string()).normalize();
     let one = Expr::Rational(Coeff::one());
-    let one_minus_z =
-        Expr::Add(vec![one.clone(), Expr::Neg(Box::new(z.clone()))]).normalize();
-    let one_minus_zbar =
-        Expr::Add(vec![Expr::Rational(Coeff::one()), Expr::Neg(Box::new(zbar.clone()))])
-            .normalize();
+    let one_minus_z = Expr::Add(vec![one.clone(), Expr::Neg(Box::new(z.clone()))]).normalize();
+    let one_minus_zbar = Expr::Add(vec![
+        Expr::Rational(Coeff::one()),
+        Expr::Neg(Box::new(zbar.clone())),
+    ])
+    .normalize();
     vec![z, zbar, one_minus_z, one_minus_zbar]
 }
 
 fn ids_to_names(ids: &[usize]) -> Vec<String> {
-    ids.iter()
-        .map(|&id| LETTER_NAMES[id].to_string())
-        .collect()
+    ids.iter().map(|&id| LETTER_NAMES[id].to_string()).collect()
 }
 
 fn enumerate_words(base: usize, len: usize) -> Vec<Vec<usize>> {
@@ -736,9 +732,7 @@ fn enumerate_words(base: usize, len: usize) -> Vec<Vec<usize>> {
 
 fn pow2_i128(exp: usize) -> Result<i128, ExperimentError> {
     if exp >= 127 {
-        return Err(ExperimentError::InvalidConfig(
-            "2^exp overflow".to_string(),
-        ));
+        return Err(ExperimentError::InvalidConfig("2^exp overflow".to_string()));
     }
     Ok(1i128 << exp)
 }
@@ -784,9 +778,7 @@ fn count_terms_exact(loop_value: usize) -> Result<u64, ExperimentError> {
             .checked_mul(2)
             .and_then(|value| value.checked_sub(p))
             .and_then(|value| value.checked_sub(1))
-            .ok_or_else(|| {
-                ExperimentError::InvalidConfig("term count overflow".to_string())
-            })?;
+            .ok_or_else(|| ExperimentError::InvalidConfig("term count overflow".to_string()))?;
         let count_l = binom_u128(m, loop_value)?;
         let count_lm1 = binom_u128(m, loop_value.saturating_sub(1))?;
         let prefix = 1u128
@@ -909,9 +901,7 @@ fn write_ladder_jsonl(
     max_terms: u64,
 ) -> Result<(), ExperimentError> {
     let estimate = estimate_term_count(loop_value).ok_or_else(|| {
-        ExperimentError::InvalidConfig(format!(
-            "term estimate overflow for L={loop_value}"
-        ))
+        ExperimentError::InvalidConfig(format!("term estimate overflow for L={loop_value}"))
     })?;
     if estimate > max_terms as u128 {
         return Err(ExperimentError::InvalidConfig(format!(
@@ -930,9 +920,8 @@ fn write_ladder_jsonl(
             merged_terms,
         },
     };
-    let meta_line = serde_json::to_string(&meta).map_err(|err| {
-        ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-    })?;
+    let meta_line = serde_json::to_string(&meta)
+        .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
     writer.write_all(meta_line.as_bytes())?;
     writer.write_all(b"\n")?;
 
@@ -945,9 +934,8 @@ fn write_ladder_jsonl(
             word,
             coeff: format_coeff(&coeff),
         };
-        let encoded = serde_json::to_string(&line).map_err(|err| {
-            ExperimentError::InvalidConfig(format!("json encode error: {err}"))
-        })?;
+        let encoded = serde_json::to_string(&line)
+            .map_err(|err| ExperimentError::InvalidConfig(format!("json encode error: {err}")))?;
         writer.write_all(encoded.as_bytes())?;
         writer.write_all(b"\n")?;
         Ok(())
@@ -1041,26 +1029,26 @@ fn li_symbol(n: usize, is_z: bool, exprs: &[Expr]) -> Symbol {
 
 fn ladder_coeff(loop_value: usize, r: usize) -> Result<Coeff, ExperimentError> {
     let numer = factorial_i128(2 * loop_value - r)?;
-    let denom = factorial_i128(r)?
-        * factorial_i128(loop_value - r)?
-        * factorial_i128(loop_value)?;
-    let sign = if (loop_value + r).is_multiple_of(2) { 1 } else { -1 };
+    let denom = factorial_i128(r)? * factorial_i128(loop_value - r)? * factorial_i128(loop_value)?;
+    let sign = if (loop_value + r).is_multiple_of(2) {
+        1
+    } else {
+        -1
+    };
     let numer = numer * sign as i128;
-    let numer_i64 = i64::try_from(numer).map_err(|_| {
-        ExperimentError::InvalidConfig("coefficient overflow".to_string())
-    })?;
-    let denom_i64 = i64::try_from(denom).map_err(|_| {
-        ExperimentError::InvalidConfig("coefficient overflow".to_string())
-    })?;
+    let numer_i64 = i64::try_from(numer)
+        .map_err(|_| ExperimentError::InvalidConfig("coefficient overflow".to_string()))?;
+    let denom_i64 = i64::try_from(denom)
+        .map_err(|_| ExperimentError::InvalidConfig("coefficient overflow".to_string()))?;
     Ok(Coeff::new(numer_i64, denom_i64))
 }
 
 fn factorial_i128(value: usize) -> Result<i128, ExperimentError> {
     let mut out: i128 = 1;
     for i in 2..=value {
-        out = out.checked_mul(i as i128).ok_or_else(|| {
-            ExperimentError::InvalidConfig("factorial overflow".to_string())
-        })?;
+        out = out
+            .checked_mul(i as i128)
+            .ok_or_else(|| ExperimentError::InvalidConfig("factorial overflow".to_string()))?;
     }
     Ok(out)
 }
@@ -1086,8 +1074,7 @@ mod tests {
             suffix_index.insert(key.clone(), idx);
         }
 
-        let mut observed =
-            vec![vec![Coeff::zero(); suffix_keys.len()]; prefix_keys.len()];
+        let mut observed = vec![vec![Coeff::zero(); suffix_keys.len()]; prefix_keys.len()];
         let sym = ladder_symbol_combinatorial(loop_value).expect("symbol");
         let exprs = ladder_letter_exprs();
         for (word, coeff) in sym.terms() {
@@ -1108,8 +1095,7 @@ mod tests {
 
         for prefix in &prefix_keys {
             for suffix in &suffix_keys {
-                let expected =
-                    ladder_marginal_count(loop_value, prefix, suffix).expect("count");
+                let expected = ladder_marginal_count(loop_value, prefix, suffix).expect("count");
                 let pidx = prefix_index[prefix];
                 let sidx = suffix_index[suffix];
                 assert_eq!(observed[pidx][sidx], expected);

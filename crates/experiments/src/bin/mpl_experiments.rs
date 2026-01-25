@@ -12,9 +12,9 @@ use mpl_experiments::{
     run_path1_toy, run_pentaladder_gen, write_count_only, write_cross_loop_outputs,
     write_cross_loop_scan_outputs, write_filtration_summary, write_outputs, AlphabetMode, CoefSet,
     CrossLoopOptions, CrossLoopScanOptions, EsymbHankelSubblockConfig, EsymbRankScanConfig,
-    EsymbSpanDepsConfig, LadderFamily, LadderGenConfig, NormalizeChoice, PairsMode,
-    Path1Mode, Path1ToyConfig, PentaladderFamily, PentaladderGenConfig, RowFilter,
-    SpanFamilyFilter, SuffixSpec,
+    EsymbSpanDepsConfig, LadderFamily, LadderGenConfig, NormalizeChoice, PairsMode, Path1Mode,
+    Path1ToyConfig, PentaladderFamily, PentaladderGenConfig, RowFilter, SpanFamilyFilter,
+    SuffixSpec,
 };
 
 fn main() {
@@ -1095,17 +1095,13 @@ fn gen_ladder(args: Vec<String>) -> Result<(), String> {
             }
             "--prefix-len" | "--r" => {
                 idx += 1;
-                prefix_len = parse_usize(
-                    &next_arg(&args, &mut idx, "--prefix-len")?,
-                    "--prefix-len",
-                )?;
+                prefix_len =
+                    parse_usize(&next_arg(&args, &mut idx, "--prefix-len")?, "--prefix-len")?;
             }
             "--suffix-len" | "--k" => {
                 idx += 1;
-                suffix_len = parse_usize(
-                    &next_arg(&args, &mut idx, "--suffix-len")?,
-                    "--suffix-len",
-                )?;
+                suffix_len =
+                    parse_usize(&next_arg(&args, &mut idx, "--suffix-len")?, "--suffix-len")?;
             }
             "--family" => {
                 idx += 1;
@@ -1210,17 +1206,13 @@ fn gen_pentaladder(args: Vec<String>) -> Result<(), String> {
             }
             "--prefix-len" | "--r" => {
                 idx += 1;
-                prefix_len = parse_usize(
-                    &next_arg(&args, &mut idx, "--prefix-len")?,
-                    "--prefix-len",
-                )?;
+                prefix_len =
+                    parse_usize(&next_arg(&args, &mut idx, "--prefix-len")?, "--prefix-len")?;
             }
             "--suffix-len" | "--k" => {
                 idx += 1;
-                suffix_len = parse_usize(
-                    &next_arg(&args, &mut idx, "--suffix-len")?,
-                    "--suffix-len",
-                )?;
+                suffix_len =
+                    parse_usize(&next_arg(&args, &mut idx, "--suffix-len")?, "--suffix-len")?;
             }
             "--family" => {
                 idx += 1;
@@ -1406,7 +1398,9 @@ fn print_help() {
     println!("  --prefix-len <n>      Prefix length (gen-ladder)");
     println!("  --suffix-len <n>      Suffix length (gen-ladder)");
     println!("  --emit-jsonl          Write Esymb_L*.jsonl (gen-ladder)");
-    println!("  --data-dir <dir>      JSONL output dir (gen-ladder, default: out_dir/converted_jsonl)");
+    println!(
+        "  --data-dir <dir>      JSONL output dir (gen-ladder, default: out_dir/converted_jsonl)"
+    );
     println!("  --max-terms <n>       Term cap for JSONL emission (gen-ladder)");
     println!("  --matrix-rank         Write marginals_matrix_rank.csv (gen-ladder)");
     println!("  --validate            Enable DE/integrability checks (gen-ladder)");
