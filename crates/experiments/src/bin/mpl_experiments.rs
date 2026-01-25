@@ -8,11 +8,13 @@ use serde::Deserialize;
 use mpl_experiments::{
     load_filtration_spec, load_spec, prefix_from_names, render_cross_loop_scan_index,
     run_count_only, run_cross_loop, run_cross_loop_scan, run_esymb_hankel_subblock,
-    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, run_path1_toy,
-    write_count_only, write_cross_loop_outputs, write_cross_loop_scan_outputs,
-    write_filtration_summary, write_outputs, AlphabetMode, CoefSet, CrossLoopOptions,
-    CrossLoopScanOptions, EsymbHankelSubblockConfig, EsymbRankScanConfig, EsymbSpanDepsConfig,
-    NormalizeChoice, PairsMode, Path1Mode, Path1ToyConfig, RowFilter, SpanFamilyFilter, SuffixSpec,
+    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, run_ladder_gen,
+    run_path1_toy, run_pentaladder_gen, write_count_only, write_cross_loop_outputs,
+    write_cross_loop_scan_outputs, write_filtration_summary, write_outputs, AlphabetMode, CoefSet,
+    CrossLoopOptions, CrossLoopScanOptions, EsymbHankelSubblockConfig, EsymbRankScanConfig,
+    EsymbSpanDepsConfig, LadderFamily, LadderGenConfig, NormalizeChoice, PairsMode,
+    Path1Mode, Path1ToyConfig, PentaladderFamily, PentaladderGenConfig, RowFilter,
+    SpanFamilyFilter, SuffixSpec,
 };
 
 fn main() {
@@ -38,6 +40,8 @@ fn run() -> Result<(), String> {
         "esymb-span-deps" => esymb_span_deps(args.collect()),
         "esymb-hankel-subblock" => esymb_hankel_subblock(args.collect()),
         "path1-toy" => path1_toy(args.collect()),
+        "gen-ladder" => gen_ladder(args.collect()),
+        "gen-pentaladder" => gen_pentaladder(args.collect()),
         "--help" | "-h" => {
             print_help();
             Ok(())
@@ -1065,6 +1069,240 @@ fn path1_toy(args: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+fn gen_ladder(args: Vec<String>) -> Result<(), String> {
+    let mut out_dir: Option<PathBuf> = None;
+    let mut loops: Option<Vec<usize>> = None;
+    let mut prefix_len = 2usize;
+    let mut suffix_len = 2usize;
+    let mut family = LadderFamily::PrefixSuffix;
+    let mut emit_jsonl = false;
+    let mut max_terms: u64 = 5_000_000;
+    let mut data_dir: Option<PathBuf> = None;
+    let mut validate = true;
+    let mut matrix_rank = false;
+    let mut reference_bruteforce_max_loop = 5usize;
+
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--out-dir" | "--out" => {
+                idx += 1;
+                out_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--out-dir")?));
+            }
+            "--loops" => {
+                idx += 1;
+                loops = Some(parse_loop_list(&args, &mut idx, "--loops")?);
+            }
+            "--prefix-len" | "--r" => {
+                idx += 1;
+                prefix_len = parse_usize(
+                    &next_arg(&args, &mut idx, "--prefix-len")?,
+                    "--prefix-len",
+                )?;
+            }
+            "--suffix-len" | "--k" => {
+                idx += 1;
+                suffix_len = parse_usize(
+                    &next_arg(&args, &mut idx, "--suffix-len")?,
+                    "--suffix-len",
+                )?;
+            }
+            "--family" => {
+                idx += 1;
+                let value = next_arg(&args, &mut idx, "--family")?;
+                family = LadderFamily::parse(&value)
+                    .ok_or_else(|| format!("unknown --family value: {value}"))?;
+            }
+            "--emit-jsonl" => {
+                idx += 1;
+                emit_jsonl = true;
+            }
+            "--max-terms" => {
+                idx += 1;
+                max_terms = parse_u64(&next_arg(&args, &mut idx, "--max-terms")?, "--max-terms")?;
+            }
+            "--data-dir" => {
+                idx += 1;
+                data_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--data-dir")?));
+            }
+            "--validate" => {
+                idx += 1;
+                validate = true;
+            }
+            "--no-validate" => {
+                idx += 1;
+                validate = false;
+            }
+            "--matrix-rank" => {
+                idx += 1;
+                matrix_rank = true;
+            }
+            "--reference-bruteforce-max-loop" => {
+                idx += 1;
+                reference_bruteforce_max_loop = parse_usize(
+                    &next_arg(&args, &mut idx, "--reference-bruteforce-max-loop")?,
+                    "--reference-bruteforce-max-loop",
+                )?;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            other => {
+                return Err(format!("unknown arg: {other}"));
+            }
+        }
+    }
+
+    let out_dir = out_dir.ok_or_else(|| "missing --out-dir <path>".to_string())?;
+    let loops = loops.ok_or_else(|| "missing --loops <list>".to_string())?;
+
+    let cfg = LadderGenConfig {
+        out_dir: out_dir.clone(),
+        loops,
+        prefix_len,
+        suffix_len,
+        family,
+        emit_jsonl,
+        max_terms,
+        data_dir,
+        validate,
+        matrix_rank,
+        reference_bruteforce_max_loop,
+    };
+    let report = run_ladder_gen(&cfg).map_err(|err| err.to_string())?;
+    println!(
+        "gen-ladder family={} loops={:?} out={}",
+        cfg.family.as_str(),
+        report.loops,
+        report.out_dir.display()
+    );
+    if let Some(dir) = report.data_dir {
+        println!("jsonl_dir={}", dir.display());
+    }
+    Ok(())
+}
+
+fn gen_pentaladder(args: Vec<String>) -> Result<(), String> {
+    let mut out_dir: Option<PathBuf> = None;
+    let mut loops: Option<Vec<usize>> = None;
+    let mut prefix_len = 2usize;
+    let mut suffix_len = 2usize;
+    let mut family = PentaladderFamily::PrefixSuffix;
+    let mut stats_only = false;
+    let mut emit_jsonl = false;
+    let mut max_terms: u64 = 5_000_000;
+    let mut data_dir: Option<PathBuf> = None;
+    let mut validate = true;
+    let mut validate_integrability_max_loop = 4usize;
+    let mut matrix_rank = false;
+
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--out-dir" | "--out" => {
+                idx += 1;
+                out_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--out-dir")?));
+            }
+            "--loops" => {
+                idx += 1;
+                loops = Some(parse_loop_list(&args, &mut idx, "--loops")?);
+            }
+            "--prefix-len" | "--r" => {
+                idx += 1;
+                prefix_len = parse_usize(
+                    &next_arg(&args, &mut idx, "--prefix-len")?,
+                    "--prefix-len",
+                )?;
+            }
+            "--suffix-len" | "--k" => {
+                idx += 1;
+                suffix_len = parse_usize(
+                    &next_arg(&args, &mut idx, "--suffix-len")?,
+                    "--suffix-len",
+                )?;
+            }
+            "--family" => {
+                idx += 1;
+                let value = next_arg(&args, &mut idx, "--family")?;
+                family = PentaladderFamily::parse(&value)
+                    .ok_or_else(|| format!("unknown --family value: {value}"))?;
+            }
+            "--stats-only" => {
+                idx += 1;
+                stats_only = true;
+            }
+            "--emit-jsonl" => {
+                idx += 1;
+                emit_jsonl = true;
+            }
+            "--max-terms" => {
+                idx += 1;
+                max_terms = parse_u64(&next_arg(&args, &mut idx, "--max-terms")?, "--max-terms")?;
+            }
+            "--data-dir" => {
+                idx += 1;
+                data_dir = Some(PathBuf::from(next_arg(&args, &mut idx, "--data-dir")?));
+            }
+            "--matrix-rank" => {
+                idx += 1;
+                matrix_rank = true;
+            }
+            "--validate" => {
+                idx += 1;
+                validate = true;
+            }
+            "--no-validate" => {
+                idx += 1;
+                validate = false;
+            }
+            "--validate-integrability-max-loop" => {
+                idx += 1;
+                validate_integrability_max_loop = parse_usize(
+                    &next_arg(&args, &mut idx, "--validate-integrability-max-loop")?,
+                    "--validate-integrability-max-loop",
+                )?;
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            other => {
+                return Err(format!("unknown arg: {other}"));
+            }
+        }
+    }
+
+    let out_dir = out_dir.ok_or_else(|| "missing --out-dir <path>".to_string())?;
+    let loops = loops.ok_or_else(|| "missing --loops <list>".to_string())?;
+
+    let cfg = PentaladderGenConfig {
+        out_dir: out_dir.clone(),
+        loops,
+        prefix_len,
+        suffix_len,
+        family,
+        stats_only,
+        emit_jsonl,
+        max_terms,
+        data_dir,
+        validate,
+        validate_integrability_max_loop,
+        matrix_rank,
+    };
+    let report = run_pentaladder_gen(&cfg).map_err(|err| err.to_string())?;
+    println!(
+        "gen-pentaladder family={} loops={:?} out={}",
+        cfg.family.as_str(),
+        report.loops,
+        report.out_dir.display()
+    );
+    if let Some(dir) = report.data_dir {
+        println!("jsonl_dir={}", dir.display());
+    }
+    Ok(())
+}
+
 fn next_value<I>(args: &mut I, flag: &str) -> Result<String, String>
 where
     I: Iterator<Item = String>,
@@ -1088,6 +1326,8 @@ fn print_help() {
     println!("  mpl-experiments esymb-span-deps --observables <path> [options]");
     println!("  mpl-experiments esymb-hankel-subblock --in <path> --r <n> --k <n> [options]");
     println!("  mpl-experiments path1-toy --mode <oracle|scaled> [options]");
+    println!("  mpl-experiments gen-ladder --out-dir <dir> --loops <list> [options]");
+    println!("  mpl-experiments gen-pentaladder --out-dir <dir> --loops <list> [options]");
     println!();
     println!("Options:");
     println!("  --spec <path>          Experiment TOML spec");
@@ -1162,6 +1402,27 @@ fn print_help() {
     println!("  --max-terms <n>       Term cap for synthesized symbols (path1-toy)");
     println!("  --export-jsonl        Write oracle symbols_jsonl (path1-toy)");
     println!("  --run-esymb           Run ESymb pipeline (path1-toy scaled)");
+    println!("  --family <name>       prefix|suffix|prefix-suffix (gen-ladder)");
+    println!("  --prefix-len <n>      Prefix length (gen-ladder)");
+    println!("  --suffix-len <n>      Suffix length (gen-ladder)");
+    println!("  --emit-jsonl          Write Esymb_L*.jsonl (gen-ladder)");
+    println!("  --data-dir <dir>      JSONL output dir (gen-ladder, default: out_dir/converted_jsonl)");
+    println!("  --max-terms <n>       Term cap for JSONL emission (gen-ladder)");
+    println!("  --matrix-rank         Write marginals_matrix_rank.csv (gen-ladder)");
+    println!("  --validate            Enable DE/integrability checks (gen-ladder)");
+    println!("  --no-validate         Disable DE/integrability checks (gen-ladder)");
+    println!("  --reference-bruteforce-max-loop <n>  Max loop for validation (gen-ladder)");
+    println!("  --family <name>       prefix|suffix|prefix-suffix (gen-pentaladder)");
+    println!("  --prefix-len <n>      Prefix length (gen-pentaladder)");
+    println!("  --suffix-len <n>      Suffix length (gen-pentaladder)");
+    println!("  --stats-only          Stream-only marginals (gen-pentaladder)");
+    println!("  --emit-jsonl          Write Esymb_L*.jsonl (gen-pentaladder)");
+    println!("  --data-dir <dir>      JSONL output dir (gen-pentaladder, default: out_dir/converted_jsonl)");
+    println!("  --max-terms <n>       Term cap for JSONL emission (gen-pentaladder)");
+    println!("  --matrix-rank         Write marginals_matrix_rank.csv (gen-pentaladder)");
+    println!("  --validate            Enable validation checks (gen-pentaladder)");
+    println!("  --no-validate         Disable validation checks (gen-pentaladder)");
+    println!("  --validate-integrability-max-loop <n>  Max loop for integrability check (gen-pentaladder)");
     println!("  --help                 Show this help");
 }
 

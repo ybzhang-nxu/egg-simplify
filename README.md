@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.2.3 release)
+# mpl-simplifier (v0.2.4 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -196,8 +196,15 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.2.3
+# => 0.2.4
 ```
+
+## Ladder Generators (mpl-experiments)
+- Box ladder (Drummond 2010 / `gen-ladder`): stable. Outputs ESymb-compatible
+  `marginals_observables.csv` / `marginals_matrix_rank.csv`.
+- Penta-ladder (He 2020 / `gen-pentaladder`): experimental. `Psi_2` is anchored
+  to Appendix A, while the recursion for `L >= 3` is still under investigation.
+  See `docs/pentaladder_status.md` for current status and debug flags.
 
 ## Testing & Benchmarks
 Tests:
@@ -211,6 +218,10 @@ Tests:
 - `crates/symbol/tests/stress.rs`: ignored stress tests for shuffle/fuel and
   higher-weight integrability.
 - `crates/experiments/tests/m1_golden.rs`: M1 golden outputs (L1 A2 cluster).
+- `crates/experiments/tests/ladder_gen.rs`: box ladder generator (stable).
+- `crates/experiments/tests/pentaladder_gen.rs`: penta-ladder stable checks.
+- `crates/experiments/tests/pentaladder_unstable.rs`: penta-ladder experimental
+  checks (run with `--ignored`).
 
 Toy oracle:
 - For alphabet `{x, y}` with no constraints, the integrable subspace dimension at
@@ -298,6 +309,13 @@ Notes:
 - Scaled mode supports high-loop JSONL generation (e.g., loops 1..24) and can be
   fed into `esymb-rank-scan` + `esymb-hankel-subblock --exact` for dependency analysis.
 
+## v0.2.4 Release Notes
+- Added He 2020 penta-ladder generator (`gen-pentaladder`) with 9-letter alphabet,
+  Ψ1/Ψ2 goldens, and deterministic ESymb marginals outputs.
+- Added penta-ladder status documentation plus a stable/unstable test split
+  (ignored recursion/integrability checks stay isolated).
+- Added tracing hooks for penta-ladder recursion/integration hotspots.
+
 ## v0.2.3 Release Notes
 - Added `path1-toy` for deterministic Path1 baselines (toy oracle + scaled synthetic ESymb JSONL).
 - Added `MaxAlternationsAcceptor` to cap alternations for high-loop enumeration.
@@ -375,7 +393,7 @@ Notes:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions are aligned to `0.2.3`.
+- Milestone note: crate versions are aligned to `0.2.4`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.

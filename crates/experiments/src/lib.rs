@@ -4,6 +4,8 @@ use mpl_symbol::SymbolError;
 
 mod analysis;
 mod build;
+mod ladder_gen;
+mod pentaladder_gen;
 mod output;
 mod run;
 mod spec;
@@ -98,6 +100,18 @@ pub use analysis::path1_toy::{run_path1_toy, Path1Mode, Path1ToyConfig, Path1Toy
 pub use analysis::skeleton2::Skeleton2Metrics;
 pub use build::acceptors::AutomatonAcceptorRef;
 pub use build::alphabet::{alphabet_from_file, toy_alphabet_xy, toy_alphabet_xyz};
+pub use ladder_gen::{
+    ladder_de_down, ladder_marginal_count, ladder_symbol_bruteforce,
+    ladder_symbol_combinatorial, run_ladder_gen, LadderFamily, LadderGenConfig, LadderGenReport,
+};
+pub use pentaladder_gen::{
+    pentaladder_alphabet, run_pentaladder_gen, symbol_psi, symbol_psi1_golden,
+    symbol_psi2_blocks, symbol_psi2_from_recursion, symbol_psi2_golden,
+    symbol_psi_with_psi2_source, symbol_q_blocks_expanded, trace_psi2_origin_details,
+    trace_psi2_origin_report, trace_psi2_origin_terms, OriginDetail, OriginKind,
+    OriginTraceReport, OriginTraceTerm, PentaladderFamily, PentaladderGenConfig,
+    PentaladderGenReport, Psi2Blocks, Psi2Source, QBlocksExpanded,
+};
 pub use output::cross_loop::{
     render_cross_loop_report, render_cross_loop_scan_csv, render_cross_loop_scan_index,
     write_cross_loop_outputs, write_cross_loop_scan_outputs,

@@ -1,4 +1,4 @@
-# M1 Data Pack (v0.2.3)
+# M1 Data Pack (v0.2.4)
 
 This folder contains 4 reproducible dataset specs for the file-driven M1 runner.
 Each spec is a single TOML file that can be passed to:
