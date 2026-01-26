@@ -4,6 +4,7 @@ use mpl_symbol::SymbolError;
 
 mod analysis;
 mod build;
+mod kze2_hankel_mvp;
 mod ladder_gen;
 mod output;
 mod pentaladder_gen;
@@ -100,6 +101,9 @@ pub use analysis::path1_toy::{run_path1_toy, Path1Mode, Path1ToyConfig, Path1Toy
 pub use analysis::skeleton2::Skeleton2Metrics;
 pub use build::acceptors::AutomatonAcceptorRef;
 pub use build::alphabet::{alphabet_from_file, toy_alphabet_xy, toy_alphabet_xyz};
+pub use kze2_hankel_mvp::{
+    run_kze2_hankel_mvp, run_kze2_hankel_mvp_cli, Kze2HankelMvpConfig, Kze2HankelMvpReport,
+};
 pub use ladder_gen::{
     ladder_de_down, ladder_marginal_count, ladder_symbol_bruteforce, ladder_symbol_combinatorial,
     run_ladder_gen, LadderFamily, LadderGenConfig, LadderGenReport,

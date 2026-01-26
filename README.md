@@ -1,4 +1,4 @@
-# mpl-simplifier (v0.2.4 release)
+# mpl-simplifier (v0.2.5 release)
 
 ## Overview
 mpl-simplifier is a deterministic Rust workspace for simplifying symbolic algebraic
@@ -196,7 +196,7 @@ cargo run -p mpl-simplify -- simplify --aggressive --symbol-aware --symbol-fuel 
 # => (* (+ y z) x)
 
 cargo run -p mpl-simplify -- version
-# => 0.2.4
+# => 0.2.5
 ```
 
 ## Ladder Generators (mpl-experiments)
@@ -309,6 +309,11 @@ Notes:
 - Scaled mode supports high-loop JSONL generation (e.g., loops 1..24) and can be
   fed into `esymb-rank-scan` + `esymb-hankel-subblock --exact` for dependency analysis.
 
+## v0.2.5 Release Notes
+- Added KZE2 Hankel MVP experiment (`kze2-hankel-mvp`) with deterministic GF(p)
+  spectral learning and exhaustive length-6 holdout verification.
+- Documented KZE2 Hankel MVP usage in `crates/experiments/README.md`.
+
 ## v0.2.4 Release Notes
 - Added He 2020 penta-ladder generator (`gen-pentaladder`) with 9-letter alphabet,
   Ψ1/Ψ2 goldens, and deterministic ESymb marginals outputs.
@@ -393,7 +398,7 @@ Notes:
   for the M1 output contract.
 - Hardened M1 spec validation (duplicate letter names, unknown references, and
   empty allow-lists are rejected deterministically).
-- Milestone note: crate versions are aligned to `0.2.4`.
+- Milestone note: crate versions are aligned to `0.2.5`.
 
 ## Contributing
 See `CONTRIBUTING.md` for contribution guidelines and required checks.

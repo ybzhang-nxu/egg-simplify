@@ -8,13 +8,13 @@ use serde::Deserialize;
 use mpl_experiments::{
     load_filtration_spec, load_spec, prefix_from_names, render_cross_loop_scan_index,
     run_count_only, run_cross_loop, run_cross_loop_scan, run_esymb_hankel_subblock,
-    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration, run_ladder_gen,
-    run_path1_toy, run_pentaladder_gen, write_count_only, write_cross_loop_outputs,
-    write_cross_loop_scan_outputs, write_filtration_summary, write_outputs, AlphabetMode, CoefSet,
-    CrossLoopOptions, CrossLoopScanOptions, EsymbHankelSubblockConfig, EsymbRankScanConfig,
-    EsymbSpanDepsConfig, LadderFamily, LadderGenConfig, NormalizeChoice, PairsMode, Path1Mode,
-    Path1ToyConfig, PentaladderFamily, PentaladderGenConfig, RowFilter, SpanFamilyFilter,
-    SuffixSpec,
+    run_esymb_rank_scan, run_esymb_span_deps, run_experiment, run_filtration,
+    run_kze2_hankel_mvp_cli, run_ladder_gen, run_path1_toy, run_pentaladder_gen, write_count_only,
+    write_cross_loop_outputs, write_cross_loop_scan_outputs, write_filtration_summary,
+    write_outputs, AlphabetMode, CoefSet, CrossLoopOptions, CrossLoopScanOptions,
+    EsymbHankelSubblockConfig, EsymbRankScanConfig, EsymbSpanDepsConfig, LadderFamily,
+    LadderGenConfig, NormalizeChoice, PairsMode, Path1Mode, Path1ToyConfig, PentaladderFamily,
+    PentaladderGenConfig, RowFilter, SpanFamilyFilter, SuffixSpec,
 };
 
 fn main() {
@@ -42,6 +42,7 @@ fn run() -> Result<(), String> {
         "path1-toy" => path1_toy(args.collect()),
         "gen-ladder" => gen_ladder(args.collect()),
         "gen-pentaladder" => gen_pentaladder(args.collect()),
+        "kze2-hankel-mvp" => run_kze2_hankel_mvp_cli(args.collect()),
         "--help" | "-h" => {
             print_help();
             Ok(())
@@ -1320,6 +1321,7 @@ fn print_help() {
     println!("  mpl-experiments path1-toy --mode <oracle|scaled> [options]");
     println!("  mpl-experiments gen-ladder --out-dir <dir> --loops <list> [options]");
     println!("  mpl-experiments gen-pentaladder --out-dir <dir> --loops <list> [options]");
+    println!("  mpl-experiments kze2-hankel-mvp [options]");
     println!();
     println!("Options:");
     println!("  --spec <path>          Experiment TOML spec");
@@ -1417,6 +1419,11 @@ fn print_help() {
     println!("  --validate            Enable validation checks (gen-pentaladder)");
     println!("  --no-validate         Disable validation checks (gen-pentaladder)");
     println!("  --validate-integrability-max-loop <n>  Max loop for integrability check (gen-pentaladder)");
+    println!("  --prime <p>          Prime modulus (kze2-hankel-mvp)");
+    println!("  --prefix-len <n>     Prefix/suffix length L (kze2-hankel-mvp)");
+    println!("  --holdout-len <n>    Holdout length (kze2-hankel-mvp)");
+    println!("  --r <n>              Even dimension (kze2-hankel-mvp)");
+    println!("  --out-dir <dir>      Output directory (kze2-hankel-mvp)");
     println!("  --help                 Show this help");
 }
 
